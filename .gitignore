@@ -1,0 +1,31 @@
+# Virtual environments
+venv/
+.env/
+env/
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Large prebuilt binaries and extracted distributions (re-downloadable via setup)
+bin/Cutter.AppImage
+bin/cutter_dist/
+bin/rizin-static.tar.xz
+bin/bin/
+bin/include/
+bin/lib/
+bin/share/
+
+# Compiled native objects
+dummy_module/*.so
+*.so
+
+# Editor & OS metadata
+.vscode/
+.idea/
+.directory
+*.swp
+*.swo
+*~
+.DS_Store
