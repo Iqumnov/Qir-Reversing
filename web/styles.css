@@ -1,0 +1,699 @@
+/* 
+ * qir-reversing OLED Stylesheet
+ * Unified Header Navigation, Zero-Radius, Strict Monochrome, Fully Responsive
+ * Author: Matvei Igumnov
+ */
+
+:root {
+    --bg-black: #000000;
+    --panel-bg: #050505;
+    --card-bg: #0c0c0c;
+    --card-hover: #161616;
+    --border-color: #202020;
+    --border-bright: #333333;
+    --text-white: #ffffff;
+    --text-primary: #ebebeb;
+    --text-muted: #828282;
+    --text-dim: #444444;
+    --font-mono: "Hack", "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border-radius: 0 !important;
+}
+
+html, body {
+    background-color: var(--bg-black);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.4;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Unified Header (Controls on Left, Divider, Tabs on Right in ONE row) */
+.unified-header {
+    background-color: var(--panel-bg);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0 12px;
+    height: 38px;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 12px;
+    overflow: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.unified-header::-webkit-scrollbar {
+    display: none;
+}
+
+/* Header Controls Group (Load QIR, Analyze, Export OpenQASM) */
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.header-divider {
+    color: var(--border-bright);
+    font-size: 13px;
+    user-select: none;
+    line-height: 1;
+}
+
+/* Tabs */
+.tactical-tabs {
+    display: flex;
+    align-items: center;
+    height: 26px;
+    overflow: hidden;
+    white-space: nowrap;
+    flex-shrink: 0;
+    gap: 2px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.tactical-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.tab-btn {
+    background-color: transparent;
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    height: 26px;
+    line-height: 24px;
+    padding: 0 12px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: background-color 0.1s ease, color 0.1s ease;
+    flex-shrink: 0;
+    box-sizing: border-box;
+}
+
+.tab-btn:hover {
+    color: var(--text-white);
+    background-color: #0d0d0d;
+}
+
+.tab-btn.active {
+    color: var(--text-white);
+    background-color: var(--bg-black);
+    border: 1px solid var(--border-bright);
+}
+
+.tab-btn.disabled {
+    opacity: 0.28 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+}
+
+.tab-badge {
+    background-color: #000000;
+    color: var(--text-muted);
+    border: 1px solid var(--border-bright);
+    font-size: 9px;
+    padding: 0 4px;
+    height: 14px;
+    line-height: 12px;
+}
+
+/* Uniform Buttons */
+.btn {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    height: 26px;
+    line-height: 24px;
+    padding: 0 10px;
+    cursor: pointer;
+    border: 1px solid var(--border-bright);
+    background-color: var(--card-bg);
+    color: var(--text-primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    vertical-align: middle;
+    transition: background-color 0.1s ease, color 0.1s ease;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.btn:hover {
+    background-color: #1a1a1a;
+    color: var(--text-white);
+    border-color: #555555;
+}
+
+.btn:active {
+    background-color: #282828;
+}
+
+.btn.disabled, .btn:disabled {
+    opacity: 0.28 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-dim) !important;
+}
+
+/* Icon Button (for [i] and [✕]) */
+.icon-btn {
+    width: 26px;
+    height: 26px;
+    padding: 0 !important;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    font-style: italic;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.primary-btn {
+    background-color: #141414;
+    border-color: #ffffff !important;
+    color: #ffffff !important;
+}
+
+.primary-btn:hover {
+    background-color: #222222;
+    border-color: #ffffff !important;
+}
+
+/* Modal Overlay & Card (Strict OLED Tactical Monochrome) */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.85);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.modal-overlay.show {
+    display: flex;
+}
+
+.modal-card {
+    background-color: #000000;
+    border: 1px solid var(--border-bright);
+    width: 100%;
+    max-width: 640px;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.95);
+}
+
+.modal-header {
+    background-color: var(--panel-bg);
+    border-bottom: 1px solid var(--border-color);
+    padding: 10px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.modal-title {
+    color: var(--text-white);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.modal-subtitle {
+    color: var(--text-muted);
+    font-size: 10px;
+}
+
+.modal-body {
+    padding: 16px 18px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    font-size: 11px;
+    line-height: 1.5;
+    scrollbar-width: thin;
+    scrollbar-color: #333333 #000000;
+}
+
+.modal-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+    background: #000000;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+    background: #333333;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover {
+    background: #555555;
+}
+
+.modal-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.modal-sec-title {
+    color: var(--text-white);
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 0.8px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 4px;
+}
+
+.modal-sec-text {
+    color: var(--text-primary);
+}
+
+.modal-sec-text code, .modal-list code {
+    background-color: #111111;
+    border: 1px solid var(--border-color);
+    padding: 1px 4px;
+    color: #ffffff;
+    font-size: 10px;
+}
+
+.modal-list {
+    margin-left: 18px;
+    color: var(--text-muted);
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.modal-list strong {
+    color: var(--text-primary);
+}
+
+.install-command-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: #0c0c0c;
+    border: 1px solid var(--border-bright);
+    padding: 6px 10px;
+    margin: 4px 0 8px 0;
+    gap: 8px;
+}
+
+.install-command-box code {
+    color: var(--text-white);
+    font-size: 11px;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    white-space: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    font-family: inherit;
+}
+
+.install-command-box code::-webkit-scrollbar {
+    display: none;
+}
+
+.modal-footer {
+    background-color: var(--panel-bg);
+    border-top: 1px solid var(--border-color);
+    padding: 10px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+
+
+/* Status Telemetry Strip (Hidden until analysis produces actual metrics) */
+.telemetry-strip {
+    display: none;
+    background-color: var(--panel-bg);
+    border-bottom: 1px solid var(--border-color);
+    padding: 5px 14px;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    flex-shrink: 0;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.telemetry-strip.active {
+    display: flex;
+}
+
+.telemetry-left, .telemetry-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.telemetry-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.t-label {
+    color: var(--text-muted);
+}
+
+.t-val {
+    color: var(--text-white);
+    font-weight: 700;
+}
+
+.telemetry-sep {
+    color: var(--border-bright);
+}
+
+/* Workspace Area */
+.workspace-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* Tab Content */
+.tab-content {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    padding: 8px 12px 12px 12px;
+}
+
+.tab-content.active {
+    display: flex;
+}
+
+/* Editor Wrapper (Source Tab) */
+.editor-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+#irEditor {
+    flex: 1;
+    width: 100%;
+    background-color: var(--bg-black);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.45;
+    padding: 10px;
+    resize: none;
+    outline: none;
+    min-height: 0;
+}
+
+#irEditor:focus {
+    border-color: var(--border-bright);
+}
+
+/* Code View Wrapper & Floating Copy Button (Zero wasted rows) */
+.code-view-wrapper {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-black);
+}
+
+.code-view-wrapper.flex-fill {
+    flex: 1;
+}
+
+.copy-floating-btn {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    z-index: 10;
+    height: 22px;
+    line-height: 20px;
+    font-size: 10px;
+    padding: 0 8px;
+    background-color: #121212;
+    border: 1px solid var(--border-bright);
+    opacity: 0.8;
+}
+
+.copy-floating-btn:hover {
+    opacity: 1;
+    background-color: #202020;
+    border-color: #666666;
+}
+
+.code-container {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 10px;
+}
+
+.code-container pre {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--text-primary);
+    white-space: pre;
+}
+
+/* Circuit Container (Zero ASCII toggle, pure responsive vector SVG) */
+.circuit-container {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-black);
+    display: flex;
+    justify-content: flex-start;
+    align-items: flex-start;
+    padding: 12px;
+}
+
+.circuit-container svg {
+    max-width: none;
+    height: auto;
+}
+
+/* Findings Panel (Deobfuscation Tab) */
+.findings-panel {
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    max-height: 160px;
+    overflow-y: auto;
+    padding: 6px 10px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.finding-card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    padding: 5px 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+}
+
+.finding-card:hover {
+    border-color: var(--border-bright);
+}
+
+.severity-pill {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border: 1px solid var(--border-bright);
+    color: var(--text-white);
+    background-color: #141414;
+    flex-shrink: 0;
+}
+
+.finding-type {
+    font-weight: 700;
+    color: var(--text-white);
+    min-width: 220px;
+    flex-shrink: 0;
+}
+
+.finding-desc {
+    color: var(--text-muted);
+    flex: 1;
+}
+
+/* Empty State */
+.empty-state {
+    color: var(--text-dim);
+    font-style: italic;
+    padding: 16px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
+
+/* =====================================================================
+ * Full Responsiveness Media Queries (Mobile, Tablet, Desktop)
+ * ===================================================================== */
+
+/* Tablet & Smaller Laptops (<= 1024px) */
+@media (max-width: 1024px) {
+    .finding-type {
+        min-width: 160px;
+    }
+}
+
+/* Mobile & Small Tablets (<= 768px) */
+@media (max-width: 768px) {
+    html, body {
+        overflow-y: auto;
+        height: auto;
+        min-height: 100vh;
+    }
+
+    .unified-header {
+        height: auto;
+        flex-direction: column;
+        align-items: stretch;
+        padding: 8px 10px;
+        gap: 8px;
+    }
+
+    .header-controls {
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        justify-content: flex-start;
+    }
+
+    .header-divider {
+        display: none;
+    }
+
+    .tactical-tabs {
+        width: 100%;
+        overflow-x: auto;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        padding-bottom: 2px;
+    }
+
+    .tactical-tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .telemetry-strip {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+        padding: 8px 10px;
+    }
+
+    .telemetry-sep {
+        display: none;
+    }
+
+    .telemetry-left, .telemetry-right {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 3px;
+        width: 100%;
+    }
+
+    .workspace-area {
+        overflow: visible;
+        flex: 1;
+    }
+
+    .tab-content {
+        min-height: 450px;
+        overflow: visible;
+    }
+
+    .code-container, .circuit-container {
+        min-height: 350px;
+        max-height: 550px;
+    }
+
+    .finding-card {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    .finding-type {
+        min-width: unset;
+    }
+}
+
+/* Small Mobile Phones (<= 480px) */
+@media (max-width: 480px) {
+    .tab-btn {
+        padding: 0 8px;
+        font-size: 10px;
+        height: 24px;
+        line-height: 22px;
+    }
+
+    .btn {
+        padding: 0 8px;
+        font-size: 10px;
+        height: 24px;
+        line-height: 22px;
+    }
+}

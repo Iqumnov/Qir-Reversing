@@ -1,0 +1,15 @@
+name = "qir-reversing"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Static Assets (Workers Sites / Modern Workers Static Assets)
+assets = { directory = "." }
+
+# Observability
+[observability]
+enabled = true
+
+# For Cloudflare Pages deployment via Wrangler CLI:
+# npx wrangler pages deploy . --project-name=qir-reversing
+

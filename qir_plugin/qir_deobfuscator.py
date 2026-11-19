@@ -258,7 +258,7 @@ class QIRDeobfuscator:
         """Generates structured deobfuscation audit report."""
         lines: List[str] = []
         lines.append(f"; ═══════════════════════════════════════════════════════════════════════════")
-        lines.append(f"; [QIR DEOBFUSCATOR] // QUANTUM ANTI-REVERSING & OBFUSCATION ANALYSIS")
+        lines.append(f"; QIR Deobfuscation Audit Report")
         lines.append(f"; Obfuscation Severity Index: {self.obfuscation_ratio:.1f}%")
         lines.append(f"; Total Artifacts Detected   : {len(self.findings)}")
         lines.append(f"; ═══════════════════════════════════════════════════════════════════════════")

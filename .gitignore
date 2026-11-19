@@ -21,6 +21,16 @@ bin/share/
 dummy_module/*.so
 *.so
 
+# Python distribution & build artifacts
+build/
+dist/
+*.egg-info/
+
+# Node / Cloudflare
+node_modules/
+.wrangler/
+*.log
+
 # Editor & OS metadata
 .vscode/
 .idea/
@@ -29,3 +39,8 @@ dummy_module/*.so
 *.swo
 *~
 .DS_Store
+
+
+target/
+**/*.rs.bk
+

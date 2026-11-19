@@ -1,0 +1,29 @@
+{
+  "name": "qir-reversing-web",
+  "version": "0.1.0",
+  "description": "Tactical Quantum Intermediate Representation (QIR) Reversing, Deobfuscation and Circuit Visualization Suite",
+  "author": "Matvei Igumnov <iqumnov@proton.me>",
+  "license": "Apache-2.0",
+  "scripts": {
+    "start": "npx serve -l 8080 .",
+    "dev": "npx wrangler dev",
+    "deploy:pages": "npx wrangler pages deploy . --project-name=qir-reversing",
+    "deploy:worker": "npx wrangler deploy",
+    "test": "node test_suite.js"
+  },
+  "devDependencies": {
+    "wrangler": "^3.86.0"
+  },
+  "keywords": [
+    "qir",
+    "quantum-computing",
+    "reverse-engineering",
+    "decompiler",
+    "deobfuscator",
+    "llvm",
+    "openqasm",
+    "cloudflare-pages",
+    "cloudflare-workers"
+  ]
+}
+

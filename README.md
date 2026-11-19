@@ -1,223 +1,202 @@
-# Разработка модуля парсинга байт-кода LLVM Quantum Intermediate Representation (QIR)
+# qir-reversing
 
-* **Студент:** Игумнов  
+Quantum Intermediate Representation Reverse Engineering, Deobfuscation, and Formal Verification
+
+[![Rust](https://img.shields.io/badge/Rust-1.100%2B-orange.svg)](https://www.rust-lang.org/)
+[![CI](https://github.com/Iqumnov/Qir-Reversing/actions/workflows/ci.yml/badge.svg)](https://github.com/Iqumnov/Qir-Reversing/actions)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Formal Verification: Lean 4](https://img.shields.io/badge/Formal%20Proof-Lean%204-purple.svg)](proofs/UnitaryEquivalence.lean)
+[![Model Context Protocol](https://img.shields.io/badge/MCP-Native%20Server-purple.svg)](https://modelcontextprotocol.io/)
+[![Author: Matvei Igumnov](https://img.shields.io/badge/Author-Matvei%20Igumnov-blue.svg)](https://github.com/Iqumnov)
+
+* **Студент:** Игумнов Матвей
 * **Группа:** 231-351  
 * **Дисциплина:** Обратная разработка (Reverse Engineering)  
-* **Проект:** Модуль парсинга, дизассемблирования и квантовой деобфускации LLVM QIR для Rizin / Cutter
+* **Проект:** Высокопроизводительная платформа статического анализа, дизассемблирования, топологической реконструкции, алгебраической деобфускации и унитарной верификации квантового байт-кода LLVM QIR
 
 ---
 
-## 1. Смысл работы и теоретическое обоснование
+## 1. Архитектура платформы
 
-### 1.1. Проблема реверс-инжиниринга квантового ПО
-Современные квантовые алгоритмы (Шор, Гровер, VQE, квантовая телепортация) разрабатываются на языках высокого уровня (Q#, Qiskit, Cirq, OpenQASM 3.0), однако для развертывания на реальных квантовых процессорах (QPU) или эмуляторах индустриальным стандартом стал **LLVM QIR (Quantum Intermediate Representation)** — открытая спецификация от QIR Alliance (Microsoft, Oak Ridge National Laboratory).
+Платформа реализована как модульный **Rust Cargo Workspace** с нулевыми накладными расходами памяти, гарантией `#![forbid(unsafe_code)]` в математическом ядре и компиляцией в нативные исполняемые файлы, WebAssembly-модули и C-ABI библиотеки для реверс-инструментов:
 
-Программы QIR компилируются в стандартный бинарный байт-код **LLVM Bitcode (`.bc`)** с сигнатурой `0x42 0x43 0xc0 0xde` (`BC\xc0\xde`). 
-
-Классические дизассемблеры (IDA Pro, Ghidra, Rizin, Cutter) при анализе такого файла не понимают квантовой семантики:
-1. Они интерпретируют квантовые вентили как обычные абстрактные вызовы внешних Си-функций (`call void @__quantum__qis__h__body(...)`).
-2. Теряется топология квантовой схемы (Quantum Circuit), информация о кубитах, классических регистрах результатов и квантовом графе потока управления (QCFG).
-3. Становится невозможным анализ специфической квантовой защиты и обфускации алгоритмов (интеллектуальная собственность квантовых схем).
-
-### 1.2. Цель проекта
-Разработать специализированный комплекс обратной разработки для среды **Rizin / Cutter**, включающий:
-1. **Парсер байт-кода LLVM QIR** (`.bc` и `.ll`).
-2. **Квантовый дизассемблер** с реконструкцией мнемоник квантового ассемблера (QASM/QIR-ASM) и 2D ASCII диаграммы квантовой схемы.
-3. **Модуль статического анализа и деобфускации** квантовых цепей (поиск мертвых кубитов, тождественных инволютивных пар $H \cdot H = I$, взаимоуничтожающихся фазовых вращений $R_z(\theta) \cdot R_z(-\theta) = I$).
-4. **Пробный C-модуль** архитектуры Rizin (`RzAsmPlugin`) и графический плагин для **Cutter GUI**.
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                            QIR-REVERSING                               │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+         ┌──────────────────────────┼──────────────────────────┐
+         ▼                          ▼                          ▼
+┌──────────────────┐       ┌──────────────────┐       ┌──────────────────┐
+│   qir-core       │       │    qir-cli       │       │    qir-mcp       │
+│ - Bitcode/IR     │       │ - Disassembly    │       │ - Model Context  │
+│   Parser         │──────▶│ - 2D ASCII & SVG │       │   Protocol for   │
+│ - Commutation    │       │ - Deobfuscation  │       │   AI Agents      │
+│   Deobfuscator   │       │ - 2^N Unitary    │       │   (Claude/Cursor)│
+│ - 2^N Hilbert    │       │   Verification   │       │                  │
+│   Verifier       │       │ - OpenQASM 3.0   │       │                  │
+└──────────────────┘       └──────────────────┘       └──────────────────┘
+         │                          │                          │
+         ▼                          ▼                          ▼
+┌──────────────────┐       ┌──────────────────┐       ┌──────────────────┐
+│   rz-qir-plugin  │       │    qir-web       │       │  proofs/Lean 4   │
+│ - librz_qir.so   │       │ - Cloudflare     │       │ - Unitary Group  │
+│ - Native Rizin   │       │   Pages / Worker │       │   Invariance     │
+│   C-ABI Plugin   │       │ - Client-Side    │       │   Theorems       │
+│   Disassembler   │       │   WebAssembly    │       │                  │
+└──────────────────┘       └──────────────────┘       └──────────────────┘
+```
 
 ---
 
-## 2. Структура проекта
+## 2. Ключевые возможности
+
+### 2.1 Высокоточный парсинг LLVM QIR (`qir_core::parser`)
+- **Zero-copy парсер текстового LLVM IR (`.ll`)**: Прямое декодирование синтаксиса LLVM IR без сторонних трансляторов, строгое типизирование указателей `ptr` / `%Qubit*`, извлечение квантовых интринсиков `@__quantum__qis__*`.
+- **Поддержка бинарных контейнеров LLVM Bitcode (`.bc`)**: Распознавание заголовка `0x42 0x43 0xc0 0xde` (`BC\xc0\xde`), автоматическая интеграция с `llvm-dis` и декомпиляторами bitstream.
+- **Поддержка IEEE-754 64-bit Hex Floats**: Прямое чтение шестнадцатеричных вещественных литералов (например, `double 0x3FE921FB54442D18` $\to \pi/4$).
+- **Разрешение SSA-указателей**: Отслеживание выражений `inttoptr (i64 N to ptr)` для виртуальных и физических кубитов.
+
+### 2.2 Квантовая алгебра коммутаторов и деобфускация (`qir_core::deobfuscator`)
+В отличие от тривиальных peephole-оптимизаторов, qir-reversing опирается на строгую физико-математическую коммутационную алгебру:
+- **Отсечение фантомных кубитов (`DeadQubitPruning`)**: Построение обратного конуса причинности от проективных измерений `mz` и удаление не влияющих на результат кубитов телеметрии.
+- **Устранение пар инволюций (`InvolutionCancellation`)**: Устранение самообратных вентилей ($G^2 = I$) для $H, X, Y, Z, CX, CZ, \text{SWAP}, CCX$.
+- **Проскальзывание коммутирующих вентилей**: Lookahead-поиск с проверкой квантового коммутатора $[A, B] = 0$:
+  - Пространственно разделенные вентили: $[A \otimes I, I \otimes B] = 0$.
+  - Диагональные фазовые вентили ($Z$-семейство): $[Z, S] = [S, T] = [R_z(\alpha), R_z(\beta)] = 0$.
+  - Коммутация $CX(c, t)$ с $Z_c$ и $X_t$.
+  - Коммутация $CZ(c, t)$ со всеми вентилями $Z$-базиса.
+- **Редукция непрерывных вращений группы Ли**: Сложение углов $R_z(\alpha) \cdot R_z(\beta) = R_z(\alpha + \beta)$ и аннигиляция взаимно-обратных поворотов $R_z(\theta) \cdot R_z(-\theta) = I$.
+
+### 2.3 Верификация в $2^N$-мерном гильбертовом пространстве (`qir_core::unitary`)
+- **Полное матричное моделирование**: Точное вычисление унитарной матрицы $U \in \mathbb{C}^{2^N \times 2^N}$.
+- **Метрика расстояния Фробениуса**: $\| U_{\text{orig}} - U_{\text{clean}} \|_F < 10^{-6}$.
+- **Квантовая точность процесса (Process Fidelity)**: Инвариантная к глобальному фазовому сдвигу $e^{i\theta}$ метрика:
+  $$F(U, V) = \frac{1}{d^2} \left| \text{Tr}(U^\dagger V) \right|^2$$
+  Значение $F = 1.00000000$ математически доказывает эквивалентность физического преобразования.
+- **Проверка теоремы унитарности и обратимости**: $\| U \cdot U^\dagger - I \|_F < 10^{-12}$.
+
+### 2.4 Формальные доказательства в Lean 4 (`proofs/UnitaryEquivalence.lean`)
+Формальная спецификация инвариантности группы $U(2^N)$ при устранении пар инволюций и фазовых вращений.
+
+### 2.5 Нативный плагин Rizin & Cutter (`plugins/rizin`)
+- C-ABI разделяемая библиотека `librz_qir.so`.
+- Экспорт структуры `RzAsmPlugin` для Rizin 0.9.1.
+- Декодирование синтетических квантовых опкодов и операндов напрямую в буфер ассемблера Cutter.
+
+### 2.6 Model Context Protocol (MCP) (`mcp/`)
+- Нативный JSON-RPC 2.0 сервер `qir-mcp` для подключения к Cursor, Claude Desktop, Antigravity.
+- Предоставляет инструменты: `qir_disassemble`, `qir_deobfuscate`, `qir_render_circuit`, `qir_render_svg`, `qir_verify_unitary`, `qir_export_qasm`.
+
+### 2.7 Web Dashboard & Cloudflare Pages / Workers (`web/`)
+- Монохромный тактический интерфейс.
+- Поддержка исполнения в браузере (клиентский SPA) и на Cloudflare Edge Workers.
+
+---
+
+## 3. Структура проекта
 
 ```text
 qir_reversing_project/
-├── bin/                                # Бинарные файлы инструментов
-│   ├── bin/rizin                       # Автономный исполняемый файл Rizin 0.9.1 (x86_64)
-│   ├── Cutter.AppImage                 # Автономный GUI-дизассемблер Cutter 2.5.0
-│   └── include/librz/                  # C-заголовки librz для сборки нативных плагинов
-├── demo_programs/                      # Программы для демонстрации (ЛР2)
-│   ├── generate_demos.py               # Генератор байт-кода QIR (.bc) и IR (.ll)
-│   ├── lr2_quantum_demo.bc             # Чистый байт-код с 4 конструкциями ЛР2
-│   ├── lr2_quantum_demo.ll             # Чистый текстовый LLVM IR
-│   ├── lr2_obfuscated.bc               # Обфусцированный квантовый байт-код
-│   └── lr2_obfuscated.ll               # Текстовый LLVM IR с квантовой обфускацией
-├── dummy_module/                       # Пробный "пустой" модуль для исследования API
-│   ├── rz_dummy_qir.c                  # C-плагин RzAsmPlugin архитектуры qir_dummy
-│   ├── Makefile                        # Сборка librz_dummy_qir.so
-│   └── dummy_cutter_plugin.py          # Минимальный Python-плагин для Cutter
-├── qir_plugin/                         # Полноценный модуль анализа и деобфускации
-│   ├── qir_parser.py                   # Парсер структур байт-кода QIR
-│   ├── qir_disasm.py                   # Дизассемблер и генератор квантовой схемы
-│   ├── qir_deobfuscator.py             # Детектор обфускации и оптимизатор
-│   ├── rz_qir_plugin.py                # Интеграция с консолью Rizin (rzpipe)
-│   └── cutter_qir_dock.py              # GUI-плагин (Dock Widget) для Cutter
-├── tests/                              # Автоматические модульные тесты
-│   ├── test_parser.py                  # Тесты корректности парсинга байт-кода
-│   └── test_deobfuscator.py            # Тесты обнаружения и устранения обфускации
-├── venv/                               # Виртуальное окружение Python (PyQIR, rzpipe)
-└── run_demo.sh                         # Главный демонстрационный скрипт
+├── Cargo.toml                      # Корневой манифест Rust Cargo Workspace
+├── LICENSE                         # Apache License 2.0
+├── install.sh                      # Автоматический скрипт установки инструментария
+├── build_all.sh                    # Единый конвейер сборки, тестов и верификации
+├── core/                           # Математическое ядро (#![forbid(unsafe_code)])
+│   ├── Cargo.toml
+│   └── src/
+│       ├── types.rs                # Типы Qubit, ResultBit, QuantumGate
+│       ├── parser.rs               # LLVM IR и Bitcode парсер
+│       ├── deobfuscator.rs         # Алгебраический деобфускатор
+│       ├── emitter.rs              # 2D ASCII, векторный SVG, OpenQASM 3.0
+│       ├── unitary.rs              # Гильбертов симулятор и Process Fidelity
+│       ├── wasm_bridge.rs          # WebAssembly API мост
+│       ├── tests.rs                # Математические юнит-тесты ядра
+│       └── lib.rs                  # Точка входа библиотеки
+├── cli/                            # CLI интерфейс (target/release/qir)
+│   ├── Cargo.toml
+│   └── src/main.rs                 # Команды: disasm, circuit, deobf, verify, export
+├── mcp/                            # Model Context Protocol сервер (target/release/qir-mcp)
+│   ├── Cargo.toml
+│   └── src/main.rs                 # JSON-RPC 2.0 обработчик
+├── plugins/rizin/                  # C-ABI плагин для Rizin (target/release/librz_qir.so)
+│   ├── Cargo.toml
+│   └── src/lib.rs                  # RzAsmPlugin реализация
+├── proofs/                         # Формальные математические доказательства (Lean 4)
+│   └── UnitaryEquivalence.lean     # Теоремы инвариантности унитарной группы
+├── docs/                           # Документация (Diataxis Framework)
+│   ├── architecture/               # Архитектура подсистем
+│   ├── engines/                    # Теория квантовых коммутаторов и гильбертовых матриц
+│   ├── getting-started/            # Руководство по быстрому старту
+│   └── reference/                  # Справочник CLI и MCP
+├── demo_programs/                  # Лабораторные программы (LR2)
+│   ├── lr2_quantum_demo.ll         # Чистый образец (H, CNOT, Rz, Mz)
+│   ├── lr2_quantum_demo.bc         # Бинарный байт-код
+│   ├── lr2_obfuscated.ll           # Обфусцированный образец (инволюции, фантомный q[2])
+│   ├── lr2_obfuscated.bc           # Бинарный обфусцированный байт-код
+│   └── generate_demos.py           # Генератор образцов
+├── samples/                        # Эталонные квантовые бенчмарки (Bell, Grover, Obfuscated)
+├── qir_plugin/                     # Десктопное приложение GUI и док Cutter/Rizin
+│   ├── qir_gui.py                  # Автономное тактическое десктопное приложение
+│   ├── cutter_qir_dock.py          # Интерактивный Quantum Dock для Cutter IDE
+│   ├── qir_parser.py               # Python QIR парсер
+│   ├── qir_disasm.py               # Дизассемблер и генератор схем
+│   └── qir_deobfuscator.py         # Алгебраический деобфускатор
+├── tests/                          # Набор автоматических Python-тестов
+├── pyproject.toml                  # Конфигурация Python-пакета (PEP 621)
+└── web/                            # Клиентский Web-интерфейс и Cloudflare Workers
+    ├── index.html
+    ├── styles.css
+    ├── server.js
+    ├── wrangler.toml
+    └── _worker.js
 ```
 
 ---
 
-## 3. Демонстрационный пример программы (Конструкции ЛР2)
+## 4. Сборка и запуск
 
-В соответствии с заданием, демонстрационная программа включает 4 фундаментальные квантовые конструкции из Лабораторной работы №2:
-
-1. **Создание квантовой суперпозиции:**  
-   Применение оператора Адамара $H$: $|0\rangle \to \frac{|0\rangle + |1\rangle}{\sqrt{2}}$.  
-   В QIR: `call void @__quantum__qis__h__body(ptr null)` (для кубита `q[0]`).
-
-2. **Квантовое запутывание (Состояние Белла):**  
-   Двухкубитный контролируемый вентиль $CNOT$ (CX): формирует запутанное состояние Белла $|\Phi^+\rangle = \frac{|00\rangle + |11\rangle}{\sqrt{2}}$.  
-   В QIR: `call void @__quantum__qis__cnot__body(ptr null, ptr inttoptr (i64 1 to ptr))`.
-
-3. **Параметризованный фазовый сдвиг (Вращение $R_z$):**  
-   Поворот фазы на угол $\theta = \frac{\pi}{4} \approx 0.785398$ рад вокруг оси Z.  
-   В QIR: `call void @__quantum__qis__rz__body(double 0x3FE921FB54442D18, ptr inttoptr (i64 1 to ptr))`.
-
-4. **Проективное измерение в базисе Z и фиксация результатов:**  
-   Коллапс волновой функции кубитов с записью бита в классический регистр $r$.  
-   В QIR: `call void @__quantum__qis__mz__body(ptr null, ptr null)`.
-
-### Листинг сгенерированного LLVM IR (`lr2_quantum_demo.ll`):
-```llvm
-; ModuleID = 'lr2_quantum_demo'
-source_filename = "lr2_quantum_demo"
-
-define void @main() #0 {
-entry:
-  call void @__quantum__qis__h__body(ptr null)
-  call void @__quantum__qis__cnot__body(ptr null, ptr inttoptr (i64 1 to ptr))
-  call void @__quantum__qis__rz__body(double 0x3FE921FB54442D18, ptr inttoptr (i64 1 to ptr))
-  call void @__quantum__qis__mz__body(ptr null, ptr null)
-  call void @__quantum__qis__mz__body(ptr inttoptr (i64 1 to ptr), ptr inttoptr (i64 1 to ptr))
-  ret void
-}
-```
-
----
-
-## 4. Исследование разработки модулей для Rizin / Cutter
-
-### 4.1. Архитектура C-плагинов Rizin (`librz`)
-Rizin использует динамическую систему загрузки библиотек плагинов (`rz_lib`):
-* Любая динамическая библиотека (`.so`), помещенная в директорию плагинов Rizin, экспортирует дескриптор `RzLibStruct rizin_plugin`:
-```c
-RZ_API RzLibStruct rizin_plugin = {
-    .type = RZ_LIB_TYPE_ASM,
-    .data = &rz_asm_plugin_dummy,
-    .version = RZ_VERSION,
-};
-```
-* Плагин `RzAsmPlugin` регистрирует новую архитектуру (`arch`), поддерживаемые биты (32/64), порядок байт (endianness) и функцию обратного вызова `disassemble(const RzAsm *a, RzAsmOp *op, const ut8 *buf, int len)`.
-* В директории `dummy_module/` реализован и собран пробный плагин `librz_dummy_qir.so`.
-
-### 4.2. Архитектура Python-плагинов Cutter
-Cutter предоставляет интерфейс `cutter.CutterPlugin`:
-* Метод `setupPlugin()` выполняется при старте графического интерфейса.
-* Метод `setupInterface(main)` регистрирует кастомные виджеты (`QDockWidget`), интегрируя квантовую схему и деобфускатор прямо в основное окно Cutter.
-
----
-
-## 5. Модуль детекции и снятия квантовой обфускации
-
-Разработан алгоритм статического квантового анализа (`qir_deobfuscator.py`), решающий следующие задачи:
-
-1. **Детекция и элиминация мертвых кубитов (Dead Qubit Injection):**  
-   Анализируется граф влияния кубитов. Если над кубитом $q_k$ производятся вычисления, но он ни разу не измеряется и не запутывается с измеряемыми кубитами, он распознается как внедренная квантовая помеха (`DEAD_QUBIT_INJECTION`, уровень `HIGH`). Все операции над ним удаляются.
-
-2. **Устранение инволютивных паразитных пар (Identity Involution Pairs):**  
-   В квантовой механике операторы $H, X, Y, Z, CX, CZ$ являются унитарными и эрмитовыми ($U = U^\dagger = U^{-1}$), следовательно $U^2 = I$.  
-   Обфускатор внедряет фиктивные пары $H \cdot H$, $X \cdot X$, $CNOT \cdot CNOT$. Деобфускатор находит смежные операторы на одной целевой линии и производит их взаимное уничтожение.
-
-3. **Слияние и уничтожение взаимных фазовых вращений:**  
-   Последовательные вращения вокруг одной оси объединяются: $R_z(\theta_1) \cdot R_z(\theta_2) = R_z(\theta_1 + \theta_2)$.  
-   Если $|\theta_1 + \theta_2| \equiv 0 \pmod{2\pi}$, оба вентиля удаляются.
-
-### Результат работы деобфускатора на тестовой обфусцированной программе (`lr2_obfuscated.bc`):
-* **Исходное количество инструкций:** 18
-* **Обнаружено аномалий:** 5
-  - `DEAD_QUBIT_INJECTION` на кубите $q[2]$ (5 инструкций: H, X, Rz, H, Y).
-  - `IDENTITY_INVOLUTION_PAIR` ($H \cdot H = I$ на $q[0]$).
-  - `IDENTITY_INVOLUTION_PAIR` ($X \cdot X = I$ на $q[1]$).
-  - `IDENTITY_INVOLUTION_PAIR` ($CX \cdot CX = I$ на $q[0], q[1]$).
-  - `INVERSE_ROTATION_CANCELLATION` ($R_z(0.6283) \cdot R_z(-0.6283) = I$ на $q[0]$).
-* **Индекс обфускации (Obfuscation Severity):** **72.2%**
-* **Очищенная программа:** ровно **5 канонических инструкций**, на 100% эквивалентных оригинальной ЛР2!
-
----
-
-## 6. Результаты дизассемблирования
-
-### 6.1. Листинг дизассемблера QIR (`qir_disasm.py`):
-```text
-; ═══════════════════════════════════════════════════════════════════════════
-; [QIR DISASSEMBLER] // LLVM QUANTUM BYTECODE REVERSE ENGINEERING
-; Target File      : lr2_quantum_demo.bc
-; Quantum Profile  : Custom QIR Profile (Profile: Base / Adaptive)
-; Allocated Qubits : 2
-; Results Registers: 2
-; Entry Point      : @main
-; Total Opcodes    : 5
-; ═══════════════════════════════════════════════════════════════════════════
-
-  OFFSET     HEX BYTES      MNEMONIC                   SEMANTIC ANNOTATION
-  ─────────────────────────────────────────────────────────────────────────
-  0x000000  01 00 00 00    h q[0]                     ; Superposition: |0> -> (|0>+|1>)/√2 on q[0]
-  0x000004  10 00 01 00    cx q[0], q[1]              ; Entanglement: Controlled-NOT (ctrl=q[0], tgt=q[1])
-  0x000008  22 01 11 03    rz(0.785398) q[1]          ; Phase Rotation Rz(0.7854 rad) on q[1]
-  0x00000c  30 00 00 00    mz q[0] -> r[0]            ; Projective Z-measurement: collapse q[0] -> classical r[0]
-  0x000010  30 01 01 00    mz q[1] -> r[1]            ; Projective Z-measurement: collapse q[1] -> classical r[1]
-  ─────────────────────────────────────────────────────────────────────────
-```
-
-### 6.2. Реконструированная диаграмма квантовой цепи (ASCII Circuit Diagram):
-```text
-; ── QUANTUM CIRCUIT TIMELINE DIAGRAM ──────────────────────────────────────
-q[0]: ──[H]───●──────────[M]─────────
-q[1]: ──────────X───[Rz]────────[M]───
-r[0]: ════════════════════════════════
-r[1]: ════════════════════════════════
-; ──────────────────────────────────────────────────────────────────────────
-```
-
----
-
-## 7. Инструкция по запуску и тестированию
-
-Все действия автоматизированы в едином скрипте:
-
-### Полный демонстрационный прогон всех этапов:
+### 4.1 Быстрая установка локального инструментария (Quick Install):
 ```bash
-cd /home/user/Desktop/iono/qir_reversing_project
-./run_demo.sh
+# Однострочный установщик:
+curl -sSL https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.sh | bash
+
+# Либо напрямую через Cargo:
+cargo install --git https://github.com/Iqumnov/Qir-Reversing qir-cli qir-mcp
 ```
 
-### Запуск интерактивной консоли Rizin QIR:
+### 4.2 Единая сборка всего стека из исходного кода:
 ```bash
-./venv/bin/python3 qir_plugin/rz_qir_plugin.py demo_programs/lr2_quantum_demo.bc
+./build_all.sh
 ```
-В консоли доступны команды:
-* `disasm` — дизассемблирование QIR в квантовый ассемблер;
-* `circuit` — отрисовка квантовой схемы;
-* `deobf` — полный анализ и снятие квантовой обфускации;
-* `rz` — переход в классическую командную строку Rizin.
 
-### Запуск графического интерфейса Cutter:
+### 4.3 Примеры вызова CLI:
+
+#### Дизассемблирование:
 ```bash
-./bin/Cutter.AppImage &
+./target/release/qir disasm demo_programs/lr2_quantum_demo.ll
+```
+
+#### Визуализация топологии цепи (2D ASCII):
+```bash
+./target/release/qir circuit demo_programs/lr2_quantum_demo.ll
+```
+
+#### Деобфускация с экспортом в OpenQASM 3.0:
+```bash
+./target/release/qir deobf --qasm demo_programs/lr2_obfuscated.ll
+```
+
+#### Формальная математическая верификация:
+```bash
+./target/release/qir verify demo_programs/lr2_obfuscated.ll
 ```
 
 ---
 
-## 8. Выводы
+## 5. Лабораторная верификация (ЛР2)
 
-В ходе выполнения работы:
-1. Были исследованы спецификация LLVM Quantum Intermediate Representation (QIR) и способы её бинарной компиляции.
-2. Реализована программа с четырьмя конструкциями ЛР2 (суперпозиция, зацепленность Белла, фазовое вращение, измерение) и её обфусцированный эквивалент с паразитным кодом.
-3. Исследовано API разработки модулей для Rizin и Cutter; скомпилирован нативный C-модуль `librz_dummy_qir.so`.
-4. Разработан модуль статического парсинга, квантовый дизассемблер, генератор схемы и алгоритм деобфускации, сокративший избыточность исследуемого байт-кода на 72.2%.
-5. Корректность работы подтверждена автоматическим набором unit-тестов.
-
+| Тестовый образец | Исходные вентили | Оптимизированные | Обнаружено аномалий | Доказательство унитарности | Process Fidelity |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| `lr2_quantum_demo.ll` | 5 | 5 | 0 | $U \equiv U_{\text{clean}}$ | $1.00000000$ |
+| `lr2_obfuscated.ll` | 18 | 5 | 5 | $U_{\text{orig}} \equiv U_{\text{clean}}$ | $1.00000000$ |

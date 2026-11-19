@@ -16,10 +16,6 @@ _PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
 if _PLUGIN_DIR not in sys.path:
     sys.path.insert(0, _PLUGIN_DIR)
 
-_PROJ_QIR_DIR = "/home/user/Desktop/iono/qir_reversing_project/qir_plugin"
-if _PROJ_QIR_DIR not in sys.path:
-    sys.path.insert(0, _PROJ_QIR_DIR)
-
 CUTTER_AVAILABLE = False
 try:
     import cutter  # type: ignore
@@ -198,7 +194,7 @@ class QIRInspectorDock(QDockWidget if CUTTER_AVAILABLE else object):
     def __init__(self, parent=None):
         if not CUTTER_AVAILABLE:
             return
-        super().__init__("QIR Quantum Inspector // Igumnov (231-351)", parent)
+        super().__init__("qir-reversing", parent)
         self.setObjectName("QIRInspectorDock")
 
         self.parser = QIRParser()
@@ -216,33 +212,22 @@ class QIRInspectorDock(QDockWidget if CUTTER_AVAILABLE else object):
         layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(6)
 
-        # Header Banner
-        header = QLabel("[ QIR QUANTUM DISASSEMBLER & DEOBFUSCATOR ]")
-        header.setObjectName("HeaderTitle")
-        header.setAlignment(Qt.AlignCenter)
-        layout.addWidget(header)
-
-        sub = QLabel("OPERATOR: IGUMNOV // GROUP 231-351 | LLVM QIR REVERSE ENGINEERING")
-        sub.setObjectName("HeaderSub")
-        sub.setAlignment(Qt.AlignCenter)
-        layout.addWidget(sub)
-
         # Action Buttons Bar
         btn_bar = QHBoxLayout()
         btn_bar.setSpacing(4)
-        self.btn_load = QPushButton("[ LOAD QIR ]")
+        self.btn_load = QPushButton("Load QIR")
         self.btn_load.clicked.connect(self.on_load_clicked)
         btn_bar.addWidget(self.btn_load)
 
-        self.btn_disasm = QPushButton("[ DISASM ]")
+        self.btn_disasm = QPushButton("Disassemble")
         self.btn_disasm.clicked.connect(self.on_disasm_clicked)
         btn_bar.addWidget(self.btn_disasm)
 
-        self.btn_circuit = QPushButton("[ CIRCUIT ]")
+        self.btn_circuit = QPushButton("Circuit")
         self.btn_circuit.clicked.connect(self.on_circuit_clicked)
         btn_bar.addWidget(self.btn_circuit)
 
-        self.btn_deobf = QPushButton("[ DEOBFUSCATE ]")
+        self.btn_deobf = QPushButton("Deobfuscate")
         self.btn_deobf.setObjectName("PrimaryBtn")
         self.btn_deobf.clicked.connect(self.on_deobf_clicked)
         btn_bar.addWidget(self.btn_deobf)
@@ -259,19 +244,19 @@ class QIRInspectorDock(QDockWidget if CUTTER_AVAILABLE else object):
         self.txt_disasm = QTextEdit()
         self.txt_disasm.setFont(font_mono)
         self.txt_disasm.setReadOnly(True)
-        self.tabs.addTab(self.txt_disasm, "[ 01 // DISASSEMBLY ]")
+        self.tabs.addTab(self.txt_disasm, "Disassembly")
 
-        # Tab 2: Circuit Matrix
+        # Tab 2: Circuit
         self.txt_circuit = QTextEdit()
         self.txt_circuit.setFont(font_mono)
         self.txt_circuit.setReadOnly(True)
-        self.tabs.addTab(self.txt_circuit, "[ 02 // QUANTUM CIRCUIT ]")
+        self.tabs.addTab(self.txt_circuit, "Circuit")
 
-        # Tab 3: Deobfuscator Report
+        # Tab 3: Deobfuscation
         self.txt_deobf = QTextEdit()
         self.txt_deobf.setFont(font_mono)
         self.txt_deobf.setReadOnly(True)
-        self.tabs.addTab(self.txt_deobf, "[ 03 // DEOBFUSCATION AUDIT ]")
+        self.tabs.addTab(self.txt_deobf, "Deobfuscation")
 
         layout.addWidget(self.tabs)
         self.setWidget(container)
@@ -328,7 +313,7 @@ class QIRCutterPlugin(cutter.CutterPlugin if CUTTER_AVAILABLE else object):
     author = "Igumnov (231-351)"
 
     def setupPlugin(self):
-        print(f"[OK] {self.name} v{self.version} initialized in Cutter core.")
+        print(f"[✓] {self.name} v{self.version} initialized in Cutter core.")
 
     def setupInterface(self, main):
         if not CUTTER_AVAILABLE:
@@ -339,7 +324,7 @@ class QIRCutterPlugin(cutter.CutterPlugin if CUTTER_AVAILABLE else object):
         dock.setVisible(True)
         dock.show()
         dock.raise_()
-        print(f"[OK] Added QIR Inspector panel to Cutter interface.")
+        print(f"[✓] Added QIR Inspector panel to Cutter interface.")
 
         # Apply monochrome tactical palette to Cutter main window
         try:
@@ -368,7 +353,7 @@ class QIRCutterPlugin(cutter.CutterPlugin if CUTTER_AVAILABLE else object):
                 mb.setNativeMenuBar(False)
                 mb.setVisible(True)
                 mb.show()
-                print(f"[OK] Ensured Cutter top menu bar is active and visible.")
+                print(f"[✓] Ensured Cutter top menu bar is active and visible.")
         except Exception as e:
             print(f"[*] Menubar init notice: {e}")
 
@@ -387,12 +372,12 @@ class QIRCutterPlugin(cutter.CutterPlugin if CUTTER_AVAILABLE else object):
                     fn = cand
             if fn and os.path.exists(fn) and (fn.endswith(".bc") or fn.endswith(".ll")):
                 dock.load_qir_file(fn)
-                print(f"[OK] Auto-loaded QIR file into Inspector: {fn}")
+                print(f"[✓] Auto-loaded QIR file into Inspector: {fn}")
         except Exception as e:
             print(f"[*] Auto-load notice: {e}")
 
     def terminate(self):
-        print(f"[OK] {self.name} terminated.")
+        print(f"[✓] {self.name} terminated.")
 
 
 def create_cutter_plugin():

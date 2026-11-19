@@ -1,0 +1,13 @@
+[package]
+name = "rz-qir-plugin"
+description = "Native Rizin Disassembly & Architecture Plugin for LLVM Quantum Intermediate Representation (QIR)"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license = "LGPL-3.0-or-later"
+repository.workspace = true
+
+[lib]
+name = "rz_qir"
+crate-type = ["cdylib"]
+

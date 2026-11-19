@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>qir-reversing</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Top Unified Navigation & Action Header -->
+    <header class="unified-header">
+        <div class="header-controls">
+            <button class="btn icon-btn" id="btnInfo" title="About &amp; Quick-Start">i</button>
+            <button class="btn action-btn" id="btnLoadQir">Load QIR</button>
+            <input type="file" id="fileInput" accept=".bc,.ll,.ir,.txt" style="display: none;">
+            <button class="btn action-btn disabled" id="btnAnalyze" disabled>Analyze</button>
+            <button class="btn action-btn disabled" id="btnExportQasm" disabled>Export OpenQASM</button>
+        </div>
+
+        <span class="header-divider">|</span>
+
+        <nav class="tactical-tabs" role="tablist">
+            <button class="tab-btn active" data-tab="tabSource" role="tab">Source</button>
+            <button class="tab-btn disabled" data-tab="tabDisasm" role="tab" id="tabBtnDisasm">Disassembly</button>
+            <button class="tab-btn disabled" data-tab="tabCircuit" role="tab" id="tabBtnCircuit">Circuit</button>
+            <button class="tab-btn disabled" data-tab="tabDeobf" role="tab" id="tabBtnDeobf">
+                Deobfuscation
+                <span class="tab-badge" id="anomalyCountBadge">0</span>
+            </button>
+            <button class="tab-btn disabled" data-tab="tabQasm" role="tab" id="tabBtnQasm">OpenQASM</button>
+        </nav>
+    </header>
+
+    <!-- Slim Telemetry Status Strip -->
+    <div class="telemetry-strip">
+        <div class="telemetry-left">
+            <span class="telemetry-item"><span class="t-label">Status:</span> <span class="t-val" id="lblStatus">Ready</span></span>
+            <span class="telemetry-sep">|</span>
+            <span class="telemetry-item"><span class="t-label">Target:</span> <span class="t-val" id="lblTarget">None</span></span>
+            <span class="telemetry-sep">|</span>
+            <span class="telemetry-item"><span class="t-label">Qubits:</span> <span class="t-val" id="valQubits">0</span></span>
+            <span class="telemetry-sep">|</span>
+            <span class="telemetry-item"><span class="t-label">Results:</span> <span class="t-val" id="valResults">0</span></span>
+            <span class="telemetry-sep">|</span>
+            <span class="telemetry-item"><span class="t-label">Opcodes:</span> <span class="t-val" id="valGates">0</span></span>
+        </div>
+        <div class="telemetry-right">
+            <span class="telemetry-item"><span class="t-label">Reduction:</span> <span class="t-val" id="valObfIndex">0.0%</span></span>
+            <span class="telemetry-sep">|</span>
+            <span class="telemetry-item"><span class="t-label">Fidelity:</span> <span class="t-val" id="valFidelity">--</span></span>
+            <span class="telemetry-sep">|</span>
+            <span class="telemetry-item"><span class="t-label">Equivalence:</span> <span class="t-val" id="valEquivalence">--</span></span>
+        </div>
+    </div>
+
+    <!-- Main Workspace (Full screen height, no wasted empty rows) -->
+    <main class="workspace-area">
+        <!-- Tab 0: Source -->
+        <div class="tab-content active" id="tabSource" role="tabpanel">
+            <div class="editor-wrapper">
+                <textarea id="irEditor" spellcheck="false" placeholder="; Paste LLVM QIR assembly here, drag &amp; drop a file, or click Load QIR..."></textarea>
+            </div>
+        </div>
+
+        <!-- Tab 1: Disassembly -->
+        <div class="tab-content" id="tabDisasm" role="tabpanel">
+            <div class="code-view-wrapper">
+                <button class="btn copy-floating-btn" id="btnCopyDisasm" title="Copy Disassembly">Copy</button>
+                <div class="code-container">
+                    <pre><code id="disasmOutput">; No QIR bytecode loaded. Paste source or select a sample to analyze.</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: Circuit -->
+        <div class="tab-content" id="tabCircuit" role="tabpanel">
+            <div class="circuit-container" id="svgCircuitContainer">
+                <div class="empty-state">; No circuit diagram to display.</div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Deobfuscation -->
+        <div class="tab-content" id="tabDeobf" role="tabpanel">
+            <div class="findings-panel" id="findingsList">
+                <div class="empty-state">; No deobfuscation audit performed yet.</div>
+            </div>
+            <div class="code-view-wrapper flex-fill">
+                <button class="btn copy-floating-btn" id="btnCopyCleaned" title="Copy Cleaned QIR">Copy</button>
+                <div class="code-container">
+                    <pre><code id="deobfCleanedOutput">; Reconstructed canonical circuit will appear here...</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 4: OpenQASM -->
+        <div class="tab-content" id="tabQasm" role="tabpanel">
+            <div class="code-view-wrapper">
+                <button class="btn copy-floating-btn" id="btnCopyQasmTab" title="Copy OpenQASM">Copy</button>
+                <div class="code-container">
+                    <pre><code id="qasmOutput">; OpenQASM 3.0 output will render here after analysis...</code></pre>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Info & Documentation Modal -->
+    <div class="modal-overlay" id="infoModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <span class="modal-title">qir-reversing</span>
+                    <span class="modal-subtitle">Quantum Reverse Engineering Platform</span>
+                </div>
+            </div>
+
+            <div class="modal-body">
+                <div class="modal-section">
+                    <div class="modal-sec-title">PURPOSE</div>
+                    <p class="modal-sec-text">
+                        A static analysis and reverse engineering platform for quantum software compiled to LLVM Quantum Intermediate Representation (binary bitcode <code>.bc</code> and textual IR <code>.ll</code>). It decompiles quantum circuits, detects anti-analysis obfuscation, and formally proves functional equivalence.
+                    </p>
+                </div>
+
+                <div class="modal-section">
+                    <div class="modal-sec-title">WORKFLOW</div>
+                    <ol class="modal-list">
+                        <li><strong>Load:</strong> Click <code>Load QIR</code> to open a bitcode (<code>.bc</code>) or IR (<code>.ll</code>) file, or paste assembly directly into the <code>Source</code> editor.</li>
+                        <li><strong>Analyze:</strong> Click <code>Analyze</code> to decompile instructions, detect obfuscation patterns, and verify unitary matrix equivalence.</li>
+                        <li><strong>Inspect:</strong> Examine findings across the <code>Disassembly</code>, <code>Circuit</code>, <code>Deobfuscation</code>, and <code>OpenQASM</code> viewports.</li>
+                    </ol>
+                </div>
+
+                <div class="modal-section">
+                    <div class="modal-sec-title">INTERFACE MODES</div>
+                    <ul class="modal-list">
+                        <li><strong>Source:</strong> Raw QIR assembly editor and bitcode file drop zone.</li>
+                        <li><strong>Disassembly:</strong> Linear instruction stream with decoded qubits, angles, and hex opcodes.</li>
+                        <li><strong>Circuit:</strong> Interactive topological schematic of quantum wires and scheduled gates.</li>
+                        <li><strong>Deobfuscation:</strong> Structural audit report, detected anomalies, and minimal canonical circuit.</li>
+                        <li><strong>OpenQASM:</strong> Decompiled OpenQASM 3.0 code ready for quantum backends and simulators.</li>
+                    </ul>
+                </div>
+
+                <div class="modal-section">
+                    <div class="modal-sec-title">LOCAL INSTALLATION &amp; TOOLCHAIN</div>
+                    <p class="modal-sec-text">
+                        While this web dashboard provides zero-install client-side analysis, installing the native bundle locally unlocks terminal automation and full IDE integrations:
+                    </p>
+                    <div class="install-command-box">
+                        <code id="installCommandText">cargo install --git https://github.com/Iqumnov/Qir-Reversing qir-cli qir-mcp</code>
+                        <button class="btn icon-btn" id="btnCopyInstall" title="Copy Install Command">Copy</button>
+                    </div>
+                    <ul class="modal-list">
+                        <li><strong>qir (CLI Toolchain):</strong> High-throughput local terminal reversing, batch processing, and scriptable pipelines without browser memory or execution limits.</li>
+                        <li><strong>qir-mcp (AI Agent Server):</strong> Native Model Context Protocol server enabling AI assistants (Cursor, Claude Desktop, Antigravity) to audit and optimize circuits directly.</li>
+                        <li><strong>Cutter &amp; Rizin Plugin:</strong> Native C-ABI plugin (<code>librz_qir.so</code>) and interactive dock for deep binary and quantum decompilation.</li>
+                        <li><strong>qir-gui (Standalone Desktop GUI):</strong> Dedicated desktop application with offline capability and native OS file dialogs.</li>
+                    </ul>
+                </div>
+
+                <div class="modal-section">
+                    <div class="modal-sec-title">DOCUMENTATION &amp; SPECIFICATIONS</div>
+                    <p class="modal-sec-text">
+                        For the complete API reference, CLI toolchain usage, MCP server integration, and formal verification proofs, visit the GitHub repository.
+                    </p>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <a href="https://github.com/Iqumnov/Qir-Reversing" target="_blank" rel="noopener noreferrer" class="btn action-btn">GitHub &amp; Full Docs ↗</a>
+                <button class="btn action-btn primary-btn" id="btnModalOk">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/qir_wasm.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
