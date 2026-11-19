@@ -31,7 +31,14 @@ PLUGIN_DIR="${HOME}/.local/share/rizin/cutter/plugins/python"
 mkdir -p "${PLUGIN_DIR}" 2>/dev/null || true
 cp -u "${PROJECT_DIR}/qir_plugin/cutter_qir_dock.py" "${PLUGIN_DIR}/" 2>/dev/null || true
 
-DEMO_FILE="${1:-${PROJECT_DIR}/demo_programs/lr2_quantum_demo.bc}"
+DEMO_FILE="${1:-}"
+if [ -z "${DEMO_FILE}" ]; then
+    if [ -f "${PROJECT_DIR}/samples/bell_state.bc" ]; then
+        DEMO_FILE="${PROJECT_DIR}/samples/bell_state.bc"
+    else
+        DEMO_FILE="${PROJECT_DIR}/demo_programs/lr2_quantum_demo.bc"
+    fi
+fi
 QSS_FILE="${PROJECT_DIR}/bin/tactical_cutter.qss"
 
 echo "[*] Launching Cutter GUI for: ${DEMO_FILE}"

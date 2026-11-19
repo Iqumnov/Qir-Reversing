@@ -44,3 +44,8 @@ node_modules/
 target/
 **/*.rs.bk
 
+# Local demonstration workspace (retained locally on device for evaluation)
+demo_programs/
+dummy_module/
+
+

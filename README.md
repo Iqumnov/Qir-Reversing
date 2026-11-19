@@ -129,13 +129,15 @@ qir_reversing_project/
 │   ├── engines/                    # Теория квантовых коммутаторов и гильбертовых матриц
 │   ├── getting-started/            # Руководство по быстрому старту
 │   └── reference/                  # Справочник CLI и MCP
-├── demo_programs/                  # Лабораторные программы (LR2)
-│   ├── lr2_quantum_demo.ll         # Чистый образец (H, CNOT, Rz, Mz)
-│   ├── lr2_quantum_demo.bc         # Бинарный байт-код
-│   ├── lr2_obfuscated.ll           # Обфусцированный образец (инволюции, фантомный q[2])
-│   ├── lr2_obfuscated.bc           # Бинарный обфусцированный байт-код
-│   └── generate_demos.py           # Генератор образцов
-├── samples/                        # Эталонные квантовые бенчмарки (Bell, Grover, Obfuscated)
+├── plugins/                        # Плагины для дизассемблеров и сред анализа
+│   ├── rizin/                      # Нативный C-ABI плагин к Rizin на Rust (librz_qir.so)
+│   └── dummy/                      # Базовый сишный зондовый модуль для Rizin C-ABI
+├── samples/                        # Эталонные квантовые бенчмарки (Bell State, Grover, Obfuscated)
+│   ├── bell_state.ll / .bc         # Канонический образец (H, CNOT, Rz, Mz)
+│   ├── obfuscated_circuit.ll / .bc # Обфусцированный образец (инволюции, фантомный q[2])
+│   ├── grover_2qubit.ll            # 2-кубитный алгоритм Гровера с оракулом
+│   ├── generate_samples.py         # Генератор тестовых образцов
+│   └── README.md                   # Спецификация образцов
 ├── qir_plugin/                     # Десктопное приложение GUI и док Cutter/Rizin
 │   ├── qir_gui.py                  # Автономное тактическое десктопное приложение
 │   ├── cutter_qir_dock.py          # Интерактивный Quantum Dock для Cutter IDE
@@ -174,22 +176,22 @@ cargo install --git https://github.com/Iqumnov/Qir-Reversing qir-cli qir-mcp
 
 #### Дизассемблирование:
 ```bash
-./target/release/qir disasm demo_programs/lr2_quantum_demo.ll
+./target/release/qir disasm samples/bell_state.ll
 ```
 
 #### Визуализация топологии цепи (2D ASCII):
 ```bash
-./target/release/qir circuit demo_programs/lr2_quantum_demo.ll
+./target/release/qir circuit samples/bell_state.ll
 ```
 
 #### Деобфускация с экспортом в OpenQASM 3.0:
 ```bash
-./target/release/qir deobf --qasm demo_programs/lr2_obfuscated.ll
+./target/release/qir deobf --qasm samples/obfuscated_circuit.ll
 ```
 
 #### Формальная математическая верификация:
 ```bash
-./target/release/qir verify demo_programs/lr2_obfuscated.ll
+./target/release/qir verify samples/obfuscated_circuit.ll
 ```
 
 ---

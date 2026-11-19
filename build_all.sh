@@ -32,10 +32,10 @@ echo "[✓] WebAssembly module generated at: web/wasm/qir_core.wasm"
 
 echo ""
 echo "[4/5] Verifying CLI against Binary Bitcode (.bc) and Obfuscated IR (.ll)..."
-./target/release/qir disasm demo_programs/lr2_quantum_demo.bc
-./target/release/qir deobf --qasm demo_programs/lr2_obfuscated.ll
-./target/release/qir verify demo_programs/lr2_quantum_demo.ll
-./target/release/qir verify demo_programs/lr2_obfuscated.ll
+./target/release/qir disasm samples/bell_state.bc
+./target/release/qir deobf --qasm samples/obfuscated_circuit.ll
+./target/release/qir verify samples/bell_state.ll
+./target/release/qir verify samples/obfuscated_circuit.ll
 
 echo ""
 echo "[5/5] Web Dashboard & Cloudflare Edge Status:"
