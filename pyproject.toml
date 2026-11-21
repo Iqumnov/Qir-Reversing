@@ -7,7 +7,7 @@ name = "qir-reversing"
 version = "0.1.0"
 description = "Quantum Intermediate Representation Reverse Engineering, Deobfuscation, and Formal Verification"
 readme = "README.md"
-authors = [{ name = "Matvei Igumnov", email = "iqumnov@proton.me" }]
+authors = [{ name = "Matvei Igumnov", email = "matvei@iqumnov.com" }]
 license = { text = "Apache-2.0" }
 classifiers = [
     "Development Status :: 4 - Beta",

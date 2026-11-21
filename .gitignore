@@ -18,7 +18,6 @@ bin/lib/
 bin/share/
 
 # Compiled native objects
-dummy_module/*.so
 *.so
 
 # Python distribution & build artifacts
@@ -45,7 +44,5 @@ target/
 **/*.rs.bk
 
 # Local demonstration workspace (retained locally on device for evaluation)
-demo_programs/
-dummy_module/
 
 

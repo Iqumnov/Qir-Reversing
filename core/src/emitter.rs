@@ -1,5 +1,5 @@
 //! Quantum Circuit Emitter (OpenQASM 3.0, ASCII Timeline Matrix, Vector SVG)
-//! Author: Matvei Igumnov <iqumnov@proton.me>
+//! Author: Matvei Igumnov <matvei@iqumnov.com>
 
 use crate::types::{QuantumGate, QuantumInstruction, Qubit};
 use std::collections::HashSet;

@@ -1,5 +1,5 @@
 //! Core Quantum Intermediate Representation (QIR) Data Types
-//! Author: Matvei Igumnov <iqumnov@proton.me>
+//! Author: Matvei Igumnov <matvei@iqumnov.com>
 
 use serde::{Deserialize, Serialize};
 use std::fmt;

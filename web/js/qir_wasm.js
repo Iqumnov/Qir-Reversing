@@ -1,7 +1,7 @@
 /**
  * qir-reversing WebAssembly Bridge
  * Pure Rust WebAssembly execution in Browser & Cloudflare Edge Isolates
- * Author: Matvei Igumnov <iqumnov@proton.me>
+ * Author: Matvei Igumnov <matvei@iqumnov.com>
  */
 
 let wasmInstance = null;
@@ -36,7 +36,7 @@ function callWasmString(fn, str) {
     const bytes = encoder.encode(str);
     const ptr = exp.qir_alloc(bytes.length);
     new Uint8Array(exp.memory.buffer, ptr, bytes.length).set(bytes);
-    
+
     const outPtr = fn(ptr, bytes.length);
     exp.qir_dealloc(ptr, bytes.length);
 
@@ -68,7 +68,7 @@ function qirWasmRenderSvg(irCode) {
 function qirWasmVerify(origIr, cleanIr = "", numQubits = 0) {
     if (!wasmInstance) throw new Error("QIR Rust WebAssembly engine not initialized.");
     const exp = wasmInstance.exports;
-    
+
     const bOrig = encoder.encode(origIr);
     const ptrOrig = exp.qir_alloc(bOrig.length);
     new Uint8Array(exp.memory.buffer, ptrOrig, bOrig.length).set(bOrig);

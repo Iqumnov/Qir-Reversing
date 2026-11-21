@@ -1,6 +1,6 @@
 /**
  * qir-reversing - Cloudflare Worker / Pages Edge API
- * Author: Matvei Igumnov <iqumnov@proton.me>
+ * Author: Matvei Igumnov <matvei@iqumnov.com>
  */
 
 const {

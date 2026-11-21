@@ -1,5 +1,5 @@
 //! Multi-Pass Quantum Deobfuscation & Anti-Obfuscation Audit Engine
-//! Author: Matvei Igumnov <iqumnov@proton.me>
+//! Author: Matvei Igumnov <matvei@iqumnov.com>
 
 use crate::types::{QuantumGate, QuantumInstruction, Qubit};
 use serde::{Deserialize, Serialize};

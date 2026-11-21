@@ -1,6 +1,6 @@
 /**
  * qir-reversing Test Suite
- * Author: Matvei Igumnov <iqumnov@proton.me>
+ * Author: Matvei Igumnov <matvei@iqumnov.com>
  */
 
 const fs = require('fs');

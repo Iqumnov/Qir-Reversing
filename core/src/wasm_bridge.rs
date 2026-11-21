@@ -1,5 +1,5 @@
 //! WebAssembly Bridge for in-browser and edge worker QIR analysis
-//! Author: Matvei Igumnov <iqumnov@proton.me>
+//! Author: Matvei Igumnov <matvei@iqumnov.com>
 
 #![allow(unsafe_code)]
 

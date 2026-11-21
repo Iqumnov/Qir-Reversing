@@ -10,7 +10,7 @@ resolver = "2"
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["Matvei Igumnov <iqumnov@proton.me>"]
+authors = ["Matvei Igumnov <matvei@iqumnov.com>"]
 license = "Apache-2.0"
 repository = "https://github.com/Iqumnov/Qir-Reversing"
 

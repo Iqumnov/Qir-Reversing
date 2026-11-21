@@ -1,5 +1,5 @@
 //! Formal Quantum State & Unitary Matrix Verification Engine
-//! Author: Matvei Igumnov <iqumnov@proton.me>
+//! Author: Matvei Igumnov <matvei@iqumnov.com>
 
 use crate::types::{QuantumGate, QuantumInstruction};
 use serde::{Deserialize, Serialize};

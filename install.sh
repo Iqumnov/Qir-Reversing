@@ -3,7 +3,7 @@
 # qir-reversing Local Toolchain Installer
 # Automated installer for qir (CLI), qir-mcp (AI Agent Server), and qir-gui
 # Repository: https://github.com/Iqumnov/Qir-Reversing
-# Author: Matvei Igumnov <iqumnov@proton.me>
+# Author: Matvei Igumnov <matvei@iqumnov.com>
 # License: Apache-2.0
 # ==============================================================================
 

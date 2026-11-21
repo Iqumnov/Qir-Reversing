@@ -1,5 +1,5 @@
 //! Model Context Protocol (MCP) Server for QIR Reverse Engineering
-//! Author: Matvei Igumnov <iqumnov@proton.me>
+//! Author: Matvei Igumnov <matvei@iqumnov.com>
 
 use qir_core::{QirDeobfuscator, QirEmitter, QirParser};
 use serde::{Deserialize, Serialize};

@@ -5,7 +5,7 @@ Formal specification and proof of correctness for quantum gate cancellation pass
 1. Involutory Self-Inverse Gate Pair Cancellation (H · H = I, X · X = I, CX · CX = I)
 2. Additive Phase Rotation Consolidation (Rz(θ1) · Rz(θ2) = Rz(θ1 + θ2))
 
-Author: Matvei Igumnov <iqumnov@proton.me>
+Author: Matvei Igumnov <matvei@iqumnov.com>
 Course: Reverse Engineering of Quantum Bytecode
 -/
 

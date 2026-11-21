@@ -2,7 +2,7 @@
   "name": "qir-reversing-web",
   "version": "0.1.0",
   "description": "Tactical Quantum Intermediate Representation (QIR) Reversing, Deobfuscation and Circuit Visualization Suite",
-  "author": "Matvei Igumnov <iqumnov@proton.me>",
+  "author": "Matvei Igumnov <matvei@iqumnov.com>",
   "license": "Apache-2.0",
   "scripts": {
     "start": "npx serve -l 8080 .",
@@ -26,4 +26,3 @@
     "cloudflare-workers"
   ]
 }
-

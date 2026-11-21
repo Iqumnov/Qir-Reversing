@@ -1,5 +1,5 @@
 //! Zero-Copy & High-Precision LLVM QIR Parser
-//! Author: Matvei Igumnov <iqumnov@proton.me>
+//! Author: Matvei Igumnov <matvei@iqumnov.com>
 
 use crate::types::{QuantumGate, QuantumInstruction, Qubit, ResultBit};
 use std::collections::HashMap;

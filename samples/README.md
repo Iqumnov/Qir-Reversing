@@ -22,3 +22,4 @@ qir deobf --qasm samples/obfuscated_circuit.ll
 # Mathematically prove unitary equivalence on Hilbert state space
 qir verify samples/obfuscated_circuit.ll
 ```
+

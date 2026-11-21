@@ -1,5 +1,5 @@
 //! qir-reversing CLI
-//! Author: Matvei Igumnov <iqumnov@proton.me>
+//! Author: Matvei Igumnov <matvei@iqumnov.com>
 
 use clap::{Parser, Subcommand};
 use colored::Colorize;
@@ -9,7 +9,7 @@ use std::process;
 
 #[derive(Parser)]
 #[command(name = "qir")]
-#[command(author = "Matvei Igumnov <iqumnov@proton.me>")]
+#[command(author = "Matvei Igumnov <matvei@iqumnov.com>")]
 #[command(version = "0.1.0")]
 #[command(about = "QIR Reverse Engineering", long_about = None)]
 struct Cli {

@@ -7,3 +7,4 @@ Minimal reference C-ABI analysis plugin for Rizin (`rz_analysis_plugin_dummy_qir
 make
 ```
 Generates `librz_dummy_qir.so`.
+

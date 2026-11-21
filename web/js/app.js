@@ -1,7 +1,7 @@
 /**
  * Web Application Controller for qir-reversing
  * 100% Pure Rust WebAssembly (wasm32-unknown-unknown)
- * Author: Matvei Igumnov <iqumnov@proton.me>
+ * Author: Matvei Igumnov <matvei@iqumnov.com>
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             infoModal.classList.remove('show');
             try {
                 localStorage.setItem('qir_reversing_intro_seen', 'true');
-            } catch (e) {}
+            } catch (e) { }
         }
     }
 
@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (urlParams.get('intro') !== '0' && (urlParams.get('intro') === '1' || !localStorage.getItem('qir_reversing_intro_seen'))) {
             openModal();
         }
-    } catch (e) {}
+    } catch (e) { }
 
     // Initialize Rust WebAssembly Engine
     try {

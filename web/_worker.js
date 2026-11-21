@@ -1,7 +1,7 @@
 /**
  * Cloudflare Pages Advanced Mode Worker (_worker.js)
  * Pure Rust WebAssembly execution at Cloudflare Edge
- * Author: Matvei Igumnov <iqumnov@proton.me>
+ * Author: Matvei Igumnov <matvei@iqumnov.com>
  */
 
 const {
