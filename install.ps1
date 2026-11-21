@@ -29,10 +29,7 @@ if (-not (Test-Path -Path $InstallDir)) {
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 }
 
-$ZipUrls = @(
-    "https://github.com/Iqumnov/Qir-Reversing/releases/download/$Version/qir-rev-windows-x86_64.zip",
-    "https://github.com/Iqumnov/Qir-Reversing/releases/download/$Version/qir-windows-x86_64.zip"
-)
+$ZipUrl = "https://github.com/Iqumnov/Qir-Reversing/releases/download/$Version/qir-rev-windows-x86_64.zip"
 
 $TempZip = Join-Path $env:TEMP "qir-rev-windows-x86_64.zip"
 $TempExtract = Join-Path $env:TEMP "qir-rev-extract"
@@ -42,19 +39,16 @@ if (Test-Path $TempExtract) {
 }
 New-Item -ItemType Directory -Path $TempExtract -Force | Out-Null
 
+Write-Host "[+] Downloading from: $ZipUrl" -ForegroundColor Green
 $DownloadSuccess = $false
-foreach ($Url in $ZipUrls) {
-    Write-Host "[+] Attempting download from: $Url" -ForegroundColor Green
-    try {
-        Invoke-WebRequest -Uri $Url -OutFile $TempZip -UseBasicParsing
-        Expand-Archive -Path $TempZip -DestinationPath $TempExtract -Force
-        Remove-Item -Path $TempZip -Force
-        $DownloadSuccess = $true
-        Write-Host "[✓] Download and extraction complete." -ForegroundColor Green
-        break
-    } catch {
-        Write-Host "[!] Asset not found at $Url, trying alternative..." -ForegroundColor Yellow
-    }
+try {
+    Invoke-WebRequest -Uri $ZipUrl -OutFile $TempZip -UseBasicParsing
+    Expand-Archive -Path $TempZip -DestinationPath $TempExtract -Force
+    Remove-Item -Path $TempZip -Force
+    $DownloadSuccess = $true
+    Write-Host "[✓] Download and extraction complete." -ForegroundColor Green
+} catch {
+    Write-Host "[!] Asset not found at $ZipUrl" -ForegroundColor Yellow
 }
 
 if (-not $DownloadSuccess) {

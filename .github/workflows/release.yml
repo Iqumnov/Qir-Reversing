@@ -29,7 +29,6 @@ jobs:
           cp target/release/qir-rev target/release/qir-rev-mcp target/release/librz_qir.so README.md LICENSE dist/qir-rev-linux-x86_64/
           cp -r qir_plugin dist/qir-rev-linux-x86_64/
           tar -czvf qir-rev-linux-x86_64.tar.gz -C dist qir-rev-linux-x86_64
-          cp qir-rev-linux-x86_64.tar.gz qir-linux-x86_64.tar.gz
           cp target/wasm32-unknown-unknown/release/qir_core.wasm ./
 
       - name: Upload Linux & Wasm Release Assets
@@ -38,7 +37,6 @@ jobs:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.1.0' }}
           files: |
             qir-rev-linux-x86_64.tar.gz
-            qir-linux-x86_64.tar.gz
             qir_core.wasm
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -63,7 +61,6 @@ jobs:
           fi
           cp -r qir_plugin dist/qir-rev-windows-x86_64/
           7z a qir-rev-windows-x86_64.zip ./dist/qir-rev-windows-x86_64/*
-          cp qir-rev-windows-x86_64.zip qir-windows-x86_64.zip
 
       - name: Upload Windows Release Assets
         uses: softprops/action-gh-release@v2
@@ -71,7 +68,6 @@ jobs:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.1.0' }}
           files: |
             qir-rev-windows-x86_64.zip
-            qir-windows-x86_64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -97,8 +93,6 @@ jobs:
           cp -r qir_plugin dist-x86_64/
           tar -czvf qir-rev-macos-arm64.tar.gz -C dist-arm64 .
           tar -czvf qir-rev-macos-x86_64.tar.gz -C dist-x86_64 .
-          cp qir-rev-macos-arm64.tar.gz qir-macos-arm64.tar.gz
-          cp qir-rev-macos-x86_64.tar.gz qir-macos-x86_64.tar.gz
 
       - name: Upload macOS Release Assets
         uses: softprops/action-gh-release@v2
@@ -107,8 +101,6 @@ jobs:
           files: |
             qir-rev-macos-arm64.tar.gz
             qir-rev-macos-x86_64.tar.gz
-            qir-macos-arm64.tar.gz
-            qir-macos-x86_64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -139,4 +131,3 @@ jobs:
           files: SHA256SUMS.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-

@@ -77,14 +77,12 @@ ARCHIVE_CANDIDATES=()
 if [ "${PLATFORM}" = "linux" ]; then
     ARCHIVE_CANDIDATES=(
         "qir-rev-linux-x86_64.tar.gz"
-        "qir-linux-x86_64.tar.gz"
-        "qir-v0.1.0-linux-x86_64.tar.gz"
     )
 elif [ "${PLATFORM}" = "macos" ]; then
     if [ "${TARGET_ARCH}" = "arm64" ]; then
-        ARCHIVE_CANDIDATES=("qir-rev-macos-arm64.tar.gz" "qir-macos-arm64.tar.gz")
+        ARCHIVE_CANDIDATES=("qir-rev-macos-arm64.tar.gz")
     else
-        ARCHIVE_CANDIDATES=("qir-rev-macos-x86_64.tar.gz" "qir-macos-x86_64.tar.gz")
+        ARCHIVE_CANDIDATES=("qir-rev-macos-x86_64.tar.gz")
     fi
 fi
 
