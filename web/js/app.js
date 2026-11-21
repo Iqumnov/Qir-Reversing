@@ -1,5 +1,5 @@
 /**
- * Web Application Controller for qir-reversing
+ * Web Application Controller for QIR Reversing
  * 100% Pure Rust WebAssembly (wasm32-unknown-unknown)
  * Author: Matvei Igumnov <matvei@iqumnov.com>
  */

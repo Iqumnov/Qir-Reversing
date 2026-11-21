@@ -2,7 +2,7 @@
 set -euo pipefail
 
 echo "========================================================"
-echo "  qir-reversing Build Pipeline"
+echo "  QIR Reversing Build Pipeline"
 echo "  Target: Native Rust CLI, MCP Server, Rizin Plugin, Web"
 echo "  Author: Matvei Igumnov <matvei@iqumnov.com>"
 echo "========================================================"
@@ -44,5 +44,5 @@ echo "    - Local server running at http://localhost:8088"
 echo "    - Cloudflare Pages / Workers ready in web/"
 echo ""
 echo "========================================================"
-echo "  qir-reversing Build Complete. Zero mocks, zero fake data."
+echo "  QIR Reversing Build Complete. Zero mocks, zero fake data."
 echo "========================================================"

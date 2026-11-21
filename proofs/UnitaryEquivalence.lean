@@ -1,5 +1,5 @@
 /-!
--- qir-reversing Formal Verification: Unitary Equivalence of Quantum Gate Cancellation
+-- QIR Reversing Formal Verification: Unitary Equivalence of Quantum Gate Cancellation
 
 Formal specification and proof of correctness for quantum gate cancellation passes:
 1. Involutory Self-Inverse Gate Pair Cancellation (H · H = I, X · X = I, CX · CX = I)

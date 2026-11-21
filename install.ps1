@@ -1,5 +1,5 @@
-﻿# ==============================================================================
-# qir-reversing Automated Windows Toolchain & Plugin Installer
+# ==============================================================================
+# QIR Reversing Automated Windows Toolchain & Plugin Installer
 # Downloads pre-compiled standalone binaries (qir-rev.exe, qir-rev-mcp.exe)
 # Automatically installs Rizin architecture plugin and Cutter Python GUI dock
 # Repository: https://github.com/Iqumnov/Qir-Reversing
@@ -16,7 +16,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 Write-Host "================================================================" -ForegroundColor White
-Write-Host "  qir-reversing // Windows Automated Toolchain & Plugin Setup   " -ForegroundColor Cyan
+Write-Host "  QIR Reversing // Windows Automated Toolchain & Plugin Setup   " -ForegroundColor Cyan
 Write-Host "================================================================" -ForegroundColor White
 Write-Host ""
 
@@ -120,7 +120,7 @@ if ($UserPath -notlike "*$InstallDir*") {
 
 Write-Host ""
 Write-Host "================================================================" -ForegroundColor Green
-Write-Host "  qir-reversing deployment successful!" -ForegroundColor Green
+Write-Host "  QIR Reversing deployment successful!" -ForegroundColor Green
 Write-Host "  Available tools:" -ForegroundColor White
 Write-Host "    - qir-rev.exe (or 'qrev') : Quantum IR disassembler & verifier" -ForegroundColor White
 Write-Host "    - qir-rev-mcp.exe         : Native Model Context Protocol server" -ForegroundColor White

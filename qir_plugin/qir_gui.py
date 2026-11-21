@@ -29,7 +29,7 @@ from qir_deobfuscator import QIRDeobfuscator
 class QIRApplication(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("qir-reversing")
+        self.title("QIR Reversing")
         self.geometry("1120x720")
         self.minsize(900, 600)
 
@@ -384,7 +384,7 @@ class QIRApplication(tk.Tk):
 
     def on_show_info(self):
         dialog = tk.Toplevel(self)
-        dialog.title("qir-reversing // Platform Overview & Guide")
+        dialog.title("QIR Reversing // Platform Overview & Guide")
         dialog.geometry("620x520")
         dialog.configure(bg="#000000")
         dialog.transient(self)
@@ -407,7 +407,7 @@ class QIRApplication(tk.Tk):
         title_frame = tk.Frame(hdr, bg="#050505")
         title_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-        lbl_title = tk.Label(title_frame, text="qir-reversing", font=("Hack Bold", 11), fg="#ffffff", bg="#050505")
+        lbl_title = tk.Label(title_frame, text="QIR Reversing", font=("Hack Bold", 11), fg="#ffffff", bg="#050505")
         lbl_title.pack(anchor="w")
         lbl_sub = tk.Label(title_frame, text="Quantum Reverse Engineering Platform", font=("Hack", 8), fg="#828282", bg="#050505")
         lbl_sub.pack(anchor="w")

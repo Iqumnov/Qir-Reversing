@@ -1,4 +1,4 @@
-//! qir-reversing CLI
+//! QIR Reversing CLI
 //! Author: Matvei Igumnov <matvei@iqumnov.com>
 
 use clap::{Parser, Subcommand};

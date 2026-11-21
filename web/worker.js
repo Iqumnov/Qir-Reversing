@@ -1,5 +1,5 @@
 /**
- * qir-reversing - Cloudflare Worker / Pages Edge API
+ * QIR Reversing - Cloudflare Worker / Pages Edge API
  * Author: Matvei Igumnov <matvei@iqumnov.com>
  */
 

@@ -1,6 +1,6 @@
-# qir-reversing Technical Documentation Portal
+# QIR Reversing Technical Documentation Portal
 
-Welcome to the technical documentation for **qir-reversing**, a reverse engineering, deobfuscation, and circuit reconstruction platform for LLVM Quantum Intermediate Representation (QIR).
+Welcome to the technical documentation for **QIR Reversing**, a reverse engineering, deobfuscation, and circuit reconstruction platform for LLVM Quantum Intermediate Representation (QIR).
 
 Designed and developed by **Matvei Igumnov** (<matvei@iqumnov.com>).
 

@@ -1,6 +1,6 @@
 # Quantum Deobfuscation Passes
 
-qir-reversing implements multi-pass static bytecode optimization passes designed to strip artificial obfuscation injected into quantum intermediate representations while strictly preserving unitary equivalence:
+**QIR Reversing** implements multi-pass static bytecode optimization passes designed to strip artificial obfuscation injected into quantum intermediate representations while strictly preserving unitary equivalence:
 
 $$U_{\text{clean}} = U_{\text{obfuscated}}$$
 

@@ -1,4 +1,4 @@
-# qir-reversing CLI Reference Manual
+# QIR Reversing CLI Reference Manual
 
 ```
 Usage: qir-rev <COMMAND>  (alias: qrev)

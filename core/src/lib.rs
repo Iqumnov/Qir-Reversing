@@ -1,4 +1,4 @@
-//! qir-reversing Core
+//! QIR Reversing Core
 //! Memory-safe LLVM QIR parsing, quantum disassembly, and deobfuscation platform.
 //! Author: Matvei Igumnov <matvei@iqumnov.com>
 

@@ -1,5 +1,5 @@
 /**
- * qir-reversing WebAssembly Bridge
+ * QIR Reversing WebAssembly Bridge
  * Pure Rust WebAssembly execution in Browser & Cloudflare Edge Isolates
  * Author: Matvei Igumnov <matvei@iqumnov.com>
  */

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# qir-reversing Universal Standalone Toolchain & Plugin Installer
+# QIR Reversing Universal Standalone Toolchain & Plugin Installer
 # Automated OS/Arch detection, binary release fetcher, and Rizin/Cutter setup
 # Usage: curl -sSL https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.sh | bash
 # Repository: https://github.com/Iqumnov/Qir-Reversing

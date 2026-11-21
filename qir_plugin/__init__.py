@@ -1,5 +1,5 @@
 """
-qir-reversing: Quantum Intermediate Representation Reverse Engineering Platform
+QIR Reversing: Quantum Intermediate Representation Reverse Engineering Platform
 Author: Matvei Igumnov <matvei@iqumnov.com>
 """
 

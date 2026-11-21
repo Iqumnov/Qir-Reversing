@@ -1,5 +1,5 @@
 /**
- * qir-reversing Test Suite
+ * QIR Reversing Test Suite
  * Author: Matvei Igumnov <matvei@iqumnov.com>
  */
 
@@ -25,7 +25,7 @@ function assert(condition, message) {
 
 async function runAllTests() {
     console.log('════════════════════════════════════════════════════════════════');
-    console.log('[TEST SUITE] qir-reversing');
+    console.log('[TEST SUITE] QIR Reversing');
     console.log('════════════════════════════════════════════════════════════════\n');
 
     await initWasm();

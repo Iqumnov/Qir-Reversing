@@ -193,7 +193,7 @@ class QIRInspectorDock(QDockWidget if CUTTER_AVAILABLE else object):
     def __init__(self, parent=None):
         if not CUTTER_AVAILABLE:
             return
-        super().__init__("qir-reversing", parent)
+        super().__init__("QIR Reversing", parent)
         self.setObjectName("QIRInspectorDock")
 
         self.parser = QIRParser()

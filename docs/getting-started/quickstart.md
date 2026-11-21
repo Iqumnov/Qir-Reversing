@@ -1,4 +1,4 @@
-# qir-reversing Quickstart Guide
+# QIR Reversing Quickstart Guide
 
 ## 1. Building the Platform
 

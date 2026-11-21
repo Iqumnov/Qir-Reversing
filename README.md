@@ -1,4 +1,4 @@
-# qir-reversing
+# QIR Reversing
 
 Quantum Intermediate Representation Reverse Engineering, Deobfuscation, and Formal Verification
 
@@ -21,7 +21,7 @@ The platform is designed as a modular Rust Cargo workspace with zero memory over
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                            QIR-REVERSING                               │
+│                            QIR REVERSING                               │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
          ┌──────────────────────────┼──────────────────────────┐

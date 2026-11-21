@@ -1,8 +1,8 @@
-# qir-reversing System Architecture
+# QIR Reversing System Architecture
 
 ## 1. High-Level Architecture Overview
 
-`qir-reversing` is a memory-safe, high-precision quantum reverse engineering platform written in pure Rust. It transforms opaque LLVM Quantum Intermediate Representation (QIR) bitcode (`.bc`) and textual IR (`.ll`) into verified quantum circuit models, executes formal commutation-based deobfuscation passes, and validates circuit equivalence in $2^N$-dimensional Hilbert space.
+`qir-reversing`**QIR Reversing** is a memory-safe, high-precision quantum reverse engineering platform written in pure Rust. It transforms opaque LLVM Quantum Intermediate Representation (QIR) bitcode (`.bc`) and textual IR (`.ll`) into verified quantum circuit models, executes formal commutation-based deobfuscation passes, and validates circuit equivalence in $2^N$-dimensional Hilbert space.
 
 ```
 ┌────────────────────────────────────────────────────────┐
