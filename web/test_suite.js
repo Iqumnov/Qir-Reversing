@@ -107,6 +107,30 @@ async function runAllTests() {
     assert(evaluateAnalyzeState('call void @__quantum__qis__h__body(%Qubit* null)') === true, 'Valid instruction enables Analyze button');
     assert(evaluateAnalyzeState('; Header\ncall void @__quantum__qis__h__body(%Qubit* null)\n; Footer') === true, 'Instructions mixed with comments enable Analyze button');
 
+    // 7. Platform Auto-Detection & Install Command Validation
+    console.log('\n7. PLATFORM AUTO-DETECTION & INSTALL COMMAND VALIDATION');
+    const platformCommands = {
+        linux: 'curl -sSL https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.sh | bash',
+        windows: 'irm https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.ps1 | iex',
+        macos: 'curl -sSL https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.sh | bash',
+        cargo: 'cargo install --git https://github.com/Iqumnov/Qir-Reversing qir-cli qir-mcp'
+    };
+
+    function detectPlatformMock(ua, plat) {
+        const u = (ua || '').toLowerCase();
+        const p = (plat || '').toLowerCase();
+        if (p.includes('win') || u.includes('windows')) return 'windows';
+        if (p.includes('mac') || u.includes('macintosh') || u.includes('mac os')) return 'macos';
+        return 'linux';
+    }
+
+    assert(detectPlatformMock('Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Win32') === 'windows', 'Windows user agent detects windows');
+    assert(platformCommands[detectPlatformMock('Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Win32')].includes('install.ps1'), 'Windows command points to install.ps1');
+    assert(detectPlatformMock('Mozilla/5.0 (X11; Linux x86_64)', 'Linux x86_64') === 'linux', 'Linux user agent detects linux');
+    assert(platformCommands[detectPlatformMock('Mozilla/5.0 (X11; Linux x86_64)', 'Linux x86_64')].includes('install.sh'), 'Linux command points to install.sh');
+    assert(detectPlatformMock('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 'MacIntel') === 'macos', 'macOS user agent detects macos');
+    assert(platformCommands[detectPlatformMock('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 'MacIntel')].includes('install.sh'), 'macOS command points to install.sh');
+
     console.log('\n════════════════════════════════════════════════════════════════');
     console.log('[SUCCESS] ALL TESTS PASSED.');
     console.log('════════════════════════════════════════════════════════════════\n');

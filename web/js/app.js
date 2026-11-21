@@ -300,6 +300,55 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const btnCopyInstall = document.getElementById('btnCopyInstall');
     const installCommandText = document.getElementById('installCommandText');
+    const detectedBadge = document.getElementById('detectedOsBadge');
+
+    const platformCommands = {
+        linux: 'curl -sSL https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.sh | bash',
+        windows: 'irm https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.ps1 | iex',
+        macos: 'curl -sSL https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.sh | bash',
+        cargo: 'cargo install --git https://github.com/Iqumnov/Qir-Reversing qir-cli qir-mcp'
+    };
+
+    function detectClientPlatform() {
+        if (typeof navigator === 'undefined') return 'linux';
+        const ua = (navigator.userAgent || '').toLowerCase();
+        const platform = (navigator.userAgentData?.platform || navigator.platform || '').toLowerCase();
+        if (platform.includes('win') || ua.includes('windows')) return 'windows';
+        if (platform.includes('mac') || ua.includes('macintosh') || ua.includes('mac os')) return 'macos';
+        return 'linux';
+    }
+
+    const detectedPlatform = detectClientPlatform();
+    if (detectedBadge) {
+        const platformNames = { linux: 'Linux', windows: 'Windows', macos: 'macOS' };
+        detectedBadge.textContent = `Detected: ${platformNames[detectedPlatform] || 'Linux'}`;
+    }
+
+    function setActivePlatform(platformKey) {
+        const command = platformCommands[platformKey] || platformCommands.linux;
+        if (installCommandText) {
+            installCommandText.textContent = command;
+        }
+        document.querySelectorAll('.platform-tab-btn').forEach(btn => {
+            if (btn.getAttribute('data-platform') === platformKey) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+    }
+
+    document.querySelectorAll('.platform-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const p = btn.getAttribute('data-platform');
+            if (p) setActivePlatform(p);
+        });
+    });
+
+    if (detectedPlatform) {
+        setActivePlatform(detectedPlatform);
+    }
+
     if (btnCopyInstall && installCommandText) {
         btnCopyInstall.addEventListener('click', (e) => {
             copyText(installCommandText.textContent.trim(), e.target);

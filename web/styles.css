@@ -325,6 +325,56 @@ html, body {
     color: var(--text-primary);
 }
 
+.install-platform-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.detected-os-badge {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-white);
+    background: #1e1e1e;
+    border: 1px solid var(--border-color);
+    padding: 1px 7px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-family: inherit;
+}
+
+.install-platform-tabs {
+    display: flex;
+    gap: 4px;
+    margin: 8px 0 4px 0;
+}
+
+.platform-tab-btn {
+    background: #111111;
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 500;
+    padding: 3px 9px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+    text-transform: uppercase;
+}
+
+.platform-tab-btn:hover {
+    color: var(--text-white);
+    border-color: var(--border-bright);
+}
+
+.platform-tab-btn.active {
+    background: #222222;
+    color: var(--text-white);
+    border-color: #666666;
+    font-weight: 600;
+}
+
 .install-command-box {
     display: flex;
     align-items: center;

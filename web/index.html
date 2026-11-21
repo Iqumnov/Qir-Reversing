@@ -152,18 +152,27 @@
                 </div>
 
                 <div class="modal-section">
-                    <div class="modal-sec-title">LOCAL INSTALLATION &amp; TOOLCHAIN</div>
+                    <div class="install-platform-header">
+                        <div class="modal-sec-title">LOCAL INSTALLATION &amp; TOOLCHAIN</div>
+                        <span class="detected-os-badge" id="detectedOsBadge">Detected: Linux</span>
+                    </div>
                     <p class="modal-sec-text">
-                        While this web dashboard provides zero-install client-side analysis, installing the native bundle locally unlocks terminal automation and full IDE integrations:
+                        While this web dashboard provides zero-install client-side analysis, installing the native bundle locally unlocks terminal automation, offline reversing, and IDE integrations:
                     </p>
+                    <div class="install-platform-tabs" role="tablist">
+                        <button class="platform-tab-btn active" data-platform="linux">Linux</button>
+                        <button class="platform-tab-btn" data-platform="windows">Windows</button>
+                        <button class="platform-tab-btn" data-platform="macos">macOS</button>
+                        <button class="platform-tab-btn" data-platform="cargo">Cargo</button>
+                    </div>
                     <div class="install-command-box">
-                        <code id="installCommandText">cargo install --git https://github.com/Iqumnov/Qir-Reversing qir-cli qir-mcp</code>
+                        <code id="installCommandText">curl -sSL https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.sh | bash</code>
                         <button class="btn icon-btn" id="btnCopyInstall" title="Copy Install Command">Copy</button>
                     </div>
                     <ul class="modal-list">
                         <li><strong>qir (CLI Toolchain):</strong> High-throughput local terminal reversing, batch processing, and scriptable pipelines without browser memory or execution limits.</li>
                         <li><strong>qir-mcp (AI Agent Server):</strong> Native Model Context Protocol server enabling AI assistants (Cursor, Claude Desktop, Antigravity) to audit and optimize circuits directly.</li>
-                        <li><strong>Cutter &amp; Rizin Plugin:</strong> Native C-ABI plugin (<code>librz_qir.so</code>) and interactive dock for deep binary and quantum decompilation.</li>
+                        <li><strong>Cutter &amp; Rizin Plugin:</strong> Native C-ABI plugin (<code>librz_qir.so</code> / <code>rz_qir.dll</code>) and interactive dock for deep binary and quantum decompilation.</li>
                         <li><strong>qir-gui (Standalone Desktop GUI):</strong> Dedicated desktop application with offline capability and native OS file dialogs.</li>
                     </ul>
                 </div>

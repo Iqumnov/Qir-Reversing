@@ -1,4 +1,4 @@
-﻿# ==============================================================================
+# ==============================================================================
 # qir-reversing Automated Windows Toolchain Installer
 # Downloads pre-compiled standalone binaries (qir.exe, qir-mcp.exe)
 # Repository: https://github.com/Iqumnov/Qir-Reversing
@@ -62,3 +62,4 @@ Write-Host "  Available binaries:" -ForegroundColor White
 Write-Host "    - qir.exe     : Quantum IR disassembler & verifier" -ForegroundColor White
 Write-Host "    - qir-mcp.exe : Native Model Context Protocol server" -ForegroundColor White
 Write-Host "================================================================" -ForegroundColor Green
+
