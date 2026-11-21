@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build & Package Release Binaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Build native release binaries
+        run: cargo build --release --workspace
+
+      - name: Build WebAssembly core target
+        run: cargo build --release --target wasm32-unknown-unknown --manifest-path core/Cargo.toml
+
+      - name: Package release archive
+        run: |
+          VERSION="${GITHUB_REF_NAME:-v0.1.0}"
+          DIST_DIR="qir-${VERSION}-linux-x86_64"
+          mkdir -p "${DIST_DIR}"
+          cp target/release/qir "${DIST_DIR}/"
+          cp target/release/qir-mcp "${DIST_DIR}/"
+          cp target/release/librz_qir.so "${DIST_DIR}/"
+          cp README.md LICENSE "${DIST_DIR}/"
+          tar -czvf "qir-${VERSION}-linux-x86_64.tar.gz" "${DIST_DIR}"
+          cp target/wasm32-unknown-unknown/release/qir_core.wasm ./
+          sha256sum "qir-${VERSION}-linux-x86_64.tar.gz" qir_core.wasm > SHA256SUMS.txt
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            qir-*-linux-x86_64.tar.gz
+            qir_core.wasm
+            SHA256SUMS.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
