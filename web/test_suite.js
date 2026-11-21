@@ -113,7 +113,7 @@ async function runAllTests() {
         linux: 'curl -sSL https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.sh | bash',
         windows: 'irm https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.ps1 | iex',
         macos: 'curl -sSL https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.sh | bash',
-        cargo: 'cargo install --git https://github.com/Iqumnov/Qir-Reversing qir-cli qir-mcp'
+        cargo: 'cargo install --git https://github.com/Iqumnov/Qir-Reversing --bin qir-rev --bin qir-rev-mcp'
     };
 
     function detectPlatformMock(ua, plat) {

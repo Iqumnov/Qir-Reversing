@@ -27,7 +27,7 @@ The platform is designed as a modular Rust Cargo workspace with zero memory over
          ┌──────────────────────────┼──────────────────────────┐
          ▼                          ▼                          ▼
 ┌──────────────────┐       ┌──────────────────┐       ┌──────────────────┐
-│   qir-core       │       │    qir-cli       │       │    qir-mcp       │
+│   qir-core       │       │    qir-rev       │       │   qir-rev-mcp    │
 │ - Bitcode/IR     │       │ - Disassembly    │       │ - Model Context  │
 │   Parser         │──────▶│ - 2D ASCII & SVG │       │   Protocol for   │
 │ - Commutation    │       │ - Deobfuscation  │       │   AI Agents      │
@@ -84,7 +84,7 @@ Machine-checked formal verification in Lean 4 specifying unitary group $U(2^N)$ 
 - Direct decoding of quantum opcodes and operands into Cutter's interactive disassembly buffer.
 
 ### 2.6 Model Context Protocol (MCP) (`mcp/`)
-- Native JSON-RPC 2.0 server `qir-mcp` for LLM coding agents (Cursor, Claude Desktop, Antigravity).
+- Native JSON-RPC 2.0 server `qir-rev-mcp` for LLM coding agents (Cursor, Claude Desktop, Antigravity).
 - Exposes tools: `qir_disassemble`, `qir_deobfuscate`, `qir_render_circuit`, `qir_render_svg`, `qir_verify_unitary`, and `qir_export_qasm`.
 
 ### 2.7 Web Dashboard & Cloudflare Edge (`web/`)
@@ -113,10 +113,10 @@ qir-reversing/
 │       ├── wasm_bridge.rs          # WebAssembly API bridge
 │       ├── tests.rs                # Core unit tests
 │       └── lib.rs                  # Library entry point
-├── cli/                            # CLI executable (target/release/qir)
+├── cli/                            # CLI executable (target/release/qir-rev)
 │   ├── Cargo.toml
 │   └── src/main.rs                 # Commands: disasm, circuit, deobf, verify, export
-├── mcp/                            # Model Context Protocol server (target/release/qir-mcp)
+├── mcp/                            # Model Context Protocol server (target/release/qir-rev-mcp)
 │   ├── Cargo.toml
 │   └── src/main.rs                 # JSON-RPC 2.0 server implementation
 ├── plugins/rizin/                  # C-ABI plugin for Rizin (target/release/librz_qir.so)
@@ -167,7 +167,7 @@ irm https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.ps1 | i
 
 **Via Cargo (Any Platform):**
 ```bash
-cargo install --git https://github.com/Iqumnov/Qir-Reversing qir-cli qir-mcp
+cargo install --git https://github.com/Iqumnov/Qir-Reversing --bin qir-rev --bin qir-rev-mcp
 ```
 
 ### 4.2 Building from Source:
@@ -184,22 +184,22 @@ cd Qir-Reversing
 
 #### Disassemble QIR:
 ```bash
-./target/release/qir disasm samples/bell_state.ll
+./target/release/qir-rev disasm samples/bell_state.ll
 ```
 
 #### Render 2D ASCII Circuit Topology:
 ```bash
-./target/release/qir circuit samples/bell_state.ll
+./target/release/qir-rev circuit samples/bell_state.ll
 ```
 
 #### Deobfuscate & Export to OpenQASM 3.0:
 ```bash
-./target/release/qir deobf --qasm samples/obfuscated_circuit.ll
+./target/release/qir-rev deobf --qasm samples/obfuscated_circuit.ll
 ```
 
 #### Formal Unitary Verification:
 ```bash
-./target/release/qir verify samples/obfuscated_circuit.ll
+./target/release/qir-rev verify samples/obfuscated_circuit.ll
 ```
 
 ---

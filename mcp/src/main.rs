@@ -140,7 +140,7 @@ async fn main() {
                 id: req.id,
                 result: Some(serde_json::json!({
                     "protocolVersion": "2024-11-05",
-                    "serverInfo": { "name": "qir-mcp", "version": "0.1.0" },
+                    "serverInfo": { "name": "qir-rev-mcp", "version": "0.1.0" },
                     "capabilities": { "tools": {} }
                 })),
                 error: None,

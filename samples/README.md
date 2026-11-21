@@ -1,6 +1,6 @@
 # Quantum Intermediate Representation (QIR) Reference Samples
 
-Standard reference test circuits for the `qir` reverse engineering and verification toolchain.
+Standard reference test circuits for the `qir-rev` reverse engineering and verification toolchain.
 
 ## Sample Inventory
 
@@ -14,12 +14,11 @@ Standard reference test circuits for the `qir` reverse engineering and verificat
 
 ```bash
 # Disassemble binary bitcode (.bc)
-qir disasm samples/bell_state.bc
+qir-rev disasm samples/bell_state.bc
 
 # Deobfuscate and recover canonical OpenQASM 3.0
-qir deobf --qasm samples/obfuscated_circuit.ll
+qir-rev deobf --qasm samples/obfuscated_circuit.ll
 
 # Mathematically prove unitary equivalence on Hilbert state space
-qir verify samples/obfuscated_circuit.ll
+qir-rev verify samples/obfuscated_circuit.ll
 ```
-

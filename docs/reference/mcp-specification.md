@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-`qir-mcp` implements the official Model Context Protocol (MCP) JSON-RPC 2.0 specification for AI assistant integration (Claude Desktop, Cursor, Copilot, Antigravity).
+`qir-rev-mcp` implements the official Model Context Protocol (MCP) JSON-RPC 2.0 specification for AI assistant integration (Claude Desktop, Cursor, Copilot, Antigravity).
 
 ## 2. Tools Exported
 
@@ -30,4 +30,3 @@
   }
 }
 ```
-

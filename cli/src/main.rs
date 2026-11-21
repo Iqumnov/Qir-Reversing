@@ -8,10 +8,10 @@ use std::path::PathBuf;
 use std::process;
 
 #[derive(Parser)]
-#[command(name = "qir")]
+#[command(name = "qir-rev")]
 #[command(author = "Matvei Igumnov <matvei@iqumnov.com>")]
 #[command(version = "0.1.0")]
-#[command(about = "QIR Reverse Engineering", long_about = None)]
+#[command(about = "Quantum Intermediate Representation (QIR) Reverse Engineering & Verification", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,

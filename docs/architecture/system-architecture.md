@@ -27,7 +27,7 @@
             │                   │                   │
             ▼                   ▼                   ▼
 ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-│  qir CLI         │  │  qir-mcp         │  │  rz_qir Plugin   │
+│  qir-rev CLI     │  │  qir-rev-mcp     │  │  rz_qir Plugin   │
 │  Native Binary   │  │  JSON-RPC 2.0    │  │  C-ABI Dynamic   │
 │  (disasm/verify) │  │  Model Protocol  │  │  Rizin / Cutter  │
 └──────────────────┘  └──────────────────┘  └──────────────────┘

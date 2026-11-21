@@ -8,7 +8,7 @@ license.workspace = true
 repository.workspace = true
 
 [[bin]]
-name = "qir-mcp"
+name = "qir-rev-mcp"
 path = "src/main.rs"
 
 [dependencies]

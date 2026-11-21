@@ -8,7 +8,7 @@ license.workspace = true
 repository.workspace = true
 
 [[bin]]
-name = "qir"
+name = "qir-rev"
 path = "src/main.rs"
 
 [dependencies]
