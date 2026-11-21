@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Unit Tests for QIR Deobfuscator
-Student: Igumnov (Group 231-351)
+Author: Matvei Igumnov <matvei@iqumnov.com>
 """
 
 import unittest

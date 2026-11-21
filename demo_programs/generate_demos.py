@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 r"""
 Quantum Intermediate Representation (QIR) Demo Generator
-Student: Igumnov (Group 231-351)
-Course: Reverse Engineering of Quantum Bytecode
+Author: Matvei Igumnov <matvei@iqumnov.com>
 
 Generates:
-1. Clean Demo Program containing 4 core constructs from Lab 2 (LR2):
+1. Clean Demo Program containing 4 core constructs:
    - Superposition (Hadamard gate)
    - Entanglement (Bell state $|\Phi^+\rangle = (|00\rangle + |11\rangle)/\sqrt{2}$ via H + CNOT)
    - Phase rotation ($R_z(\pi/4)$)
@@ -23,7 +22,7 @@ import pyqir
 OUT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def generate_clean_demo():
-    """Constructs clean LR2 Quantum Demonstration Program."""
+    """Constructs clean Quantum Demonstration Program."""
     # 2 qubits, 2 results
     mod = pyqir.SimpleModule("lr2_quantum_demo", num_qubits=2, num_results=2)
     qis = pyqir.BasicQisBuilder(mod.builder)
@@ -61,7 +60,7 @@ def generate_clean_demo():
 
 
 def generate_obfuscated_demo():
-    """Constructs Obfuscated LR2 Quantum Program with Anti-Reversing traps."""
+    """Constructs Obfuscated Quantum Program with Anti-Reversing traps."""
     # 3 qubits (q0, q1 real; q2 is a dead/phantom qubit injected for obfuscation), 2 results
     mod = pyqir.SimpleModule("lr2_obfuscated", num_qubits=3, num_results=2)
     qis = pyqir.BasicQisBuilder(mod.builder)

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 Rizin QIR Extension Plugin & CLI Interface
-Student: Igumnov (Group 231-351)
-Course: Reverse Engineering of Quantum Bytecode
+Author: Matvei Igumnov <matvei@iqumnov.com>
 
 Integrates the QIR Parser, Disassembler, and Deobfuscator into Rizin (via rzpipe).
 Provides interactive shell commands:
@@ -59,7 +58,7 @@ class RzQIRPlugin:
         return self.rz
 
     def cmd_info(self):
-        print(f"[Rizin QIR Plugin] Author: Igumnov (231-351)")
+        print(f"[Rizin QIR Plugin] Author: Matvei Igumnov <matvei@iqumnov.com>")
         print(f"Target File      : {self.target_file}")
         print(f"QIR Profile      : Custom Adaptive Quantum Profile")
         print(f"Allocated Qubits : {self.parser.num_qubits}")

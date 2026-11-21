@@ -1,6 +1,6 @@
 //! Native Rizin Architecture & Disassembler Plugin for Quantum Intermediate Representation (QIR)
 //! Author: Matvei Igumnov <matvei@iqumnov.com>
-//! Course: Reverse Engineering of Quantum Bytecode
+//! Quantum Intermediate Representation Reverse Engineering
 
 use std::ffi::c_void;
 use std::os::raw::{c_char, c_int};
@@ -123,7 +123,7 @@ unsafe extern "C" fn qir_disassemble_native(
 static RZ_ASM_PLUGIN_QIR: RzAsmPlugin = RzAsmPlugin {
     name: c"qir".as_ptr(),
     arch: c"qir".as_ptr(),
-    author: c"Matvei Igumnov (Group 231-351)".as_ptr(),
+    author: c"Matvei Igumnov <matvei@iqumnov.com>".as_ptr(),
     version: c"0.1.0".as_ptr(),
     cpus: c"qir_base,qir_adaptive".as_ptr(),
     desc: c"Quantum Intermediate Representation (QIR) Architecture Plugin".as_ptr(),

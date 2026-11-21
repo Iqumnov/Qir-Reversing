@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 Quantum Intermediate Representation (QIR) Disassembler & Circuit Graph Engine
-Student: Igumnov (Group 231-351)
-Course: Reverse Engineering of Quantum Bytecode
+Author: Matvei Igumnov <matvei@iqumnov.com>
 
 Translates binary QIR Bytecode / LLVM IR into:
 1. Formatted Disassembly Listing (Address | Hex | Mnemonic | Semantic Comment)

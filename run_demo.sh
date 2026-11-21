@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # Master Demonstration Script: LLVM QIR Reverse Engineering Suite
-# Student: Igumnov (Group 231-351)
+# Author: Matvei Igumnov <matvei@iqumnov.com>
 # ==============================================================================
 
 set -e
@@ -14,7 +14,7 @@ export PYTHONPATH="${PROJECT_DIR}:${PROJECT_DIR}/qir_plugin"
 
 echo -e "\033[1;36m┌────────────────────────────────────────────────────────────────────────┐\033[0m"
 echo -e "\033[1;36m│   LLVM QUANTUM INTERMEDIATE REPRESENTATION (QIR) REVERSING SUITE       │\033[0m"
-echo -e "\033[1;36m│   Student: Igumnov | Group: 231-351 | Course: Reverse Engineering      │\033[0m"
+echo -e "\033[1;36m│   Author: Matvei Igumnov <matvei@iqumnov.com>                          │\033[0m"
 echo -e "\033[1;36m└────────────────────────────────────────────────────────────────────────┘\033[0m\n"
 
 echo -e "\033[1;32m[STAGE 1] Compiling Probe Plugin for Rizin (C architecture module)...\033[0m"

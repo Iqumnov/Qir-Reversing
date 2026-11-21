@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 Quantum Intermediate Representation (QIR) Deobfuscator & Anti-Reversing Engine
-Student: Igumnov (Group 231-351)
-Course: Reverse Engineering of Quantum Bytecode
+Author: Matvei Igumnov <matvei@iqumnov.com>
 
 Advanced Quantum Circuit DAG & Commutativity Deobfuscator:
 1. Multi-pass Fixed-Point Optimization

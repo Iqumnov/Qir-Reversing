@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # Launch Cutter GUI with QIR Plugin Integration
-# Student: Igumnov (Group 231-351)
+# Author: Matvei Igumnov <matvei@iqumnov.com>
 # ==============================================================================
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -1,7 +1,6 @@
 /**
  * Probe "Empty" / Dummy Module for Rizin / Cutter
- * Student: Igumnov (Group 231-351)
- * Course: Reverse Engineering of Quantum Bytecode
+ * Author: Matvei Igumnov <matvei@iqumnov.com>
  *
  * This module demonstrates the fundamental architecture of Rizin/Cutter plugins:
  * 1. Implementation of RzAsmPlugin structure (architecture identification, disassembly callback).
@@ -51,7 +50,7 @@ static int dummy_disassemble(const RzAsm *a, RzAsmOp *op, const ut8 *buf, int le
 static RzAsmPlugin rz_asm_plugin_dummy = {
     .name = "qir_dummy",
     .arch = "qir_dummy",
-    .author = "Igumnov (231-351)",
+    .author = "Matvei Igumnov",
     .version = "1.0.0",
     .cpus = "qpu_virtual",
     .desc = "Probe Dummy QIR Architecture Plugin for Rizin/Cutter",

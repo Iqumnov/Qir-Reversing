@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 Standalone Graphical User Interface (GUI) for QIR Reverse Engineering Suite
-Student: Igumnov (Group 231-351)
-Course: Reverse Engineering of Quantum Bytecode
+Author: Matvei Igumnov <matvei@iqumnov.com>
 
 Interactive Desktop Application:
 - LLVM QIR Bitcode (.bc) and Textual IR (.ll) Loader

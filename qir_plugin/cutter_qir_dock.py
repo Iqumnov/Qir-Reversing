@@ -1,7 +1,6 @@
 """
 Cutter GUI Quantum Reversing Dock Plugin (QIR Inspector & Deobfuscator)
-Student: Igumnov (Group 231-351)
-Course: Reverse Engineering of Quantum Bytecode
+Author: Matvei Igumnov <matvei@iqumnov.com>
 
 Integrates directly into Cutter (Qt5/Qt6 GUI for Rizin):
 1. Dedicated "QIR Quantum Disassembler" dockable panel
@@ -308,9 +307,9 @@ class QIRInspectorDock(QDockWidget if CUTTER_AVAILABLE else object):
 
 class QIRCutterPlugin(cutter.CutterPlugin if CUTTER_AVAILABLE else object):
     name = "QIR Quantum Disassembler & Deobfuscator"
-    description = "LLVM Quantum Intermediate Representation plugin for Cutter (Igumnov, 231-351)"
+    description = "LLVM Quantum Intermediate Representation plugin for Cutter"
     version = "1.0.0"
-    author = "Igumnov (231-351)"
+    author = "Matvei Igumnov"
 
     def setupPlugin(self):
         print(f"[✓] {self.name} v{self.version} initialized in Cutter core.")

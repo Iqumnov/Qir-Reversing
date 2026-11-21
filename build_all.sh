@@ -4,7 +4,7 @@ set -euo pipefail
 echo "========================================================"
 echo "  qir-reversing Build Pipeline"
 echo "  Target: Native Rust CLI, MCP Server, Rizin Plugin, Web"
-echo "  Author: Matvei Igumnov (Group 231-351)"
+echo "  Author: Matvei Igumnov <matvei@iqumnov.com>"
 echo "========================================================"
 
 export PATH="$HOME/.cargo/bin:$PATH"

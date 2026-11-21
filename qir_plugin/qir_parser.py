@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 QIR (Quantum Intermediate Representation) LLVM Bytecode & IR Parser
-Student: Igumnov (Group 231-351)
-Course: Reverse Engineering of Quantum Bytecode
+Author: Matvei Igumnov <matvei@iqumnov.com>
 
 Enhanced Multi-Architecture Parser:
 - Parses binary LLVM Bitcode (.bc) and textual LLVM IR (.ll)

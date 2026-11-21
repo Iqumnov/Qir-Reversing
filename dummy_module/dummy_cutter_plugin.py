@@ -1,7 +1,6 @@
 """
 Probe "Empty" / Dummy Plugin for Cutter GUI
-Student: Igumnov (Group 231-351)
-Course: Reverse Engineering of Quantum Bytecode
+Author: Matvei Igumnov <matvei@iqumnov.com>
 
 Demonstrates Cutter's Python Plugin Architecture:
 1. Subclassing cutter.CutterPlugin
@@ -34,7 +33,7 @@ class DummyQIRDock(QDockWidget if CUTTER_AVAILABLE else object):
         layout.addWidget(title)
 
         info = QLabel(
-            "<b>Author:</b> Igumnov (231-351)<br>"
+            "<b>Author:</b> Matvei Igumnov<br>"
             "<b>Target:</b> LLVM Quantum Intermediate Representation (QIR)<br>"
             "<b>Status:</b> Dummy probe module initialized successfully."
         )
@@ -54,9 +53,9 @@ class DummyQIRDock(QDockWidget if CUTTER_AVAILABLE else object):
 class DummyQIRPlugin(cutter.CutterPlugin if CUTTER_AVAILABLE else object):
     """Cutter Plugin Manifest for Dummy Module."""
     name = "QIR Dummy Plugin"
-    description = "Probe empty module for QIR architecture research (Igumnov, 231-351)"
+    description = "Probe empty module for QIR architecture research"
     version = "1.0.0"
-    author = "Igumnov (231-351)"
+    author = "Matvei Igumnov"
 
     def setupPlugin(self):
         print(f"[✓] {self.name} v{self.version} registered in Cutter core.")

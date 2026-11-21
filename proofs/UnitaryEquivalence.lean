@@ -6,7 +6,7 @@ Formal specification and proof of correctness for quantum gate cancellation pass
 2. Additive Phase Rotation Consolidation (Rz(θ1) · Rz(θ2) = Rz(θ1 + θ2))
 
 Author: Matvei Igumnov <matvei@iqumnov.com>
-Course: Reverse Engineering of Quantum Bytecode
+Quantum Intermediate Representation Reverse Engineering
 -/
 
 namespace QIR.Formal

@@ -1,6 +1,6 @@
 # QIR Quantum Bytecode Reversing & Deobfuscation Web Suite
 
-Tactical web-based reverse engineering, deobfuscation, and circuit reconstruction suite for **Quantum Intermediate Representation (QIR)** LLVM bitcode and IR. Designed and built by **Matvei Igumnov (Group 231-351)** for the course *Reverse Engineering of Quantum Bytecode*.
+Tactical web-based reverse engineering, deobfuscation, and circuit reconstruction suite for **Quantum Intermediate Representation (QIR)** LLVM bitcode and IR. Designed and built by **Matvei Igumnov** (<matvei@iqumnov.com>).
 
 ---
 

@@ -2,7 +2,7 @@
 
 Welcome to the technical documentation for **qir-reversing**, a reverse engineering, deobfuscation, and circuit reconstruction platform for LLVM Quantum Intermediate Representation (QIR).
 
-Designed and developed by **Matvei Igumnov (Group 231-351)**.
+Designed and developed by **Matvei Igumnov** (<matvei@iqumnov.com>).
 
 ---
 

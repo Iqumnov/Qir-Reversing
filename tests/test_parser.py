@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Unit Tests for QIR Parser
-Student: Igumnov (Group 231-351)
+Author: Matvei Igumnov <matvei@iqumnov.com>
 """
 
 import unittest
@@ -25,7 +25,7 @@ class TestQIRParser(unittest.TestCase):
         gates = [i for i in insts if not i.is_control_flow]
         self.assertEqual(len(gates), 5, "Clean demo must contain exactly 5 quantum operations")
 
-        # Verify LR2 constructs:
+        # Verify quantum constructs:
         # Construct 1: Hadamard on q0
         self.assertEqual(gates[0].op, "h")
         self.assertEqual(gates[0].qubits, [0])
