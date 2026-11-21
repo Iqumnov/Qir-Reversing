@@ -1,4 +1,4 @@
-name: Release
+name: Release Multi-Platform Matrix
 
 on:
   push:
@@ -10,43 +10,89 @@ permissions:
   contents: write
 
 jobs:
-  build-release:
-    name: Build & Package Release Binaries
+  build-linux:
+    name: Build Linux (x86_64 & WebAssembly)
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Rust toolchain
+      - name: Setup Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
 
-      - name: Build native release binaries
-        run: cargo build --release --workspace
-
-      - name: Build WebAssembly core target
-        run: cargo build --release --target wasm32-unknown-unknown --manifest-path core/Cargo.toml
-
-      - name: Package release archive
+      - name: Build Linux Binaries & WebAssembly
         run: |
-          VERSION="${GITHUB_REF_NAME:-v0.1.0}"
-          DIST_DIR="qir-${VERSION}-linux-x86_64"
-          mkdir -p "${DIST_DIR}"
-          cp target/release/qir "${DIST_DIR}/"
-          cp target/release/qir-mcp "${DIST_DIR}/"
-          cp target/release/librz_qir.so "${DIST_DIR}/"
-          cp README.md LICENSE "${DIST_DIR}/"
-          tar -czvf "qir-${VERSION}-linux-x86_64.tar.gz" "${DIST_DIR}"
+          cargo build --release --workspace
+          cargo build --release --target wasm32-unknown-unknown --manifest-path core/Cargo.toml
+          mkdir -p dist/qir-linux-x86_64
+          cp target/release/qir target/release/qir-mcp target/release/librz_qir.so README.md LICENSE dist/qir-linux-x86_64/
+          tar -czvf qir-linux-x86_64.tar.gz -C dist qir-linux-x86_64
           cp target/wasm32-unknown-unknown/release/qir_core.wasm ./
-          sha256sum "qir-${VERSION}-linux-x86_64.tar.gz" qir_core.wasm > SHA256SUMS.txt
 
-      - name: Upload to GitHub Release
+      - name: Upload Linux & Wasm Release Assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            qir-*-linux-x86_64.tar.gz
+            qir-linux-x86_64.tar.gz
             qir_core.wasm
-            SHA256SUMS.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-windows:
+    name: Build Windows (x86_64 CLI & MCP)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Windows Binaries
+        shell: bash
+        run: |
+          cargo build --release --workspace
+          mkdir -p dist/qir-windows-x86_64
+          cp target/release/qir.exe target/release/qir-mcp.exe README.md LICENSE dist/qir-windows-x86_64/
+          if [ -f target/release/rz_qir.dll ]; then
+            cp target/release/rz_qir.dll dist/qir-windows-x86_64/
+          fi
+          7z a qir-windows-x86_64.zip ./dist/qir-windows-x86_64/*
+
+      - name: Upload Windows Release Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            qir-windows-x86_64.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos:
+    name: Build macOS (Universal Binaries)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+
+      - name: Build macOS Binaries
+        run: |
+          cargo build --release --target aarch64-apple-darwin --workspace
+          cargo build --release --target x86_64-apple-darwin --workspace
+          mkdir -p dist-arm64 dist-x86_64
+          cp target/aarch64-apple-darwin/release/qir target/aarch64-apple-darwin/release/qir-mcp README.md LICENSE dist-arm64/
+          cp target/x86_64-apple-darwin/release/qir target/x86_64-apple-darwin/release/qir-mcp README.md LICENSE dist-x86_64/
+          tar -czvf qir-macos-arm64.tar.gz -C dist-arm64 .
+          tar -czvf qir-macos-x86_64.tar.gz -C dist-x86_64 .
+
+      - name: Upload macOS Release Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            qir-macos-arm64.tar.gz
+            qir-macos-x86_64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

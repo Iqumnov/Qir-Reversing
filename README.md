@@ -154,11 +154,19 @@ qir-reversing/
 ## 4. Build & Installation
 
 ### 4.1 Quick Install:
-```bash
-# One-line installer:
-curl -sSL https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.sh | bash
 
-# Or directly via Cargo:
+**Linux / macOS:**
+```bash
+curl -sSL https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.ps1 | iex
+```
+
+**Via Cargo (Any Platform):**
+```bash
 cargo install --git https://github.com/Iqumnov/Qir-Reversing qir-cli qir-mcp
 ```
 
