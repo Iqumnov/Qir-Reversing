@@ -5,6 +5,7 @@ Quantum Intermediate Representation Reverse Engineering, Deobfuscation, and Form
 [![Rust](https://img.shields.io/badge/Rust-1.80%2B-orange.svg)](https://www.rust-lang.org/)
 [![CI](https://github.com/Iqumnov/Qir-Reversing/actions/workflows/ci.yml/badge.svg)](https://github.com/Iqumnov/Qir-Reversing/actions)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24528097.svg)](https://doi.org/10.5281/zenodo.24528097)
 [![Formal Verification: Lean 4](https://img.shields.io/badge/Formal%20Proof-Lean%204-purple.svg)](proofs/UnitaryEquivalence.lean)
 [![Model Context Protocol](https://img.shields.io/badge/MCP-Native%20Server-purple.svg)](https://modelcontextprotocol.io/)
 [![Live Web Dashboard](https://img.shields.io/badge/Live%20Web-qir--reversing.iqumnov.com-emerald.svg)](https://qir-reversing.iqumnov.com)
