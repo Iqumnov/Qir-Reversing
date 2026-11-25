@@ -35,3 +35,8 @@ qir-gui = "qir_plugin.qir_gui:main"
 where = ["."]
 include = ["qir_plugin*"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["bin", "cutter_dist", "venv", ".git"]
+
+

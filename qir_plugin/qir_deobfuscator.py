@@ -180,7 +180,8 @@ class QIRDeobfuscator:
         if not g1.params or not g2.params:
             return False
         theta_sum: float = g1.params[0] + g2.params[0]
-        return abs(theta_sum) < 1e-4 or abs(theta_sum % (2 * math.pi)) < 1e-4
+        rem: float = abs(theta_sum) % (2.0 * math.pi)
+        return rem < 1e-4 or abs(rem - 2.0 * math.pi) < 1e-4
 
     def deobfuscate(self, instructions: List[QuantumInstruction]) -> List[QuantumInstruction]:
         """Multi-pass iterative circuit deobfuscation until fixed point."""

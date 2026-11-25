@@ -219,3 +219,127 @@ cd Qir-Reversing
 ## License
 
 This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
+
+---
+
+# QIR Reversing (Русская версия)
+
+Обратная разработка, деобфускация и формальная верификация квантового промежуточного представления LLVM QIR
+
+[![Rust](https://img.shields.io/badge/Rust-1.80%2B-orange.svg)](https://www.rust-lang.org/)
+[![Лицензия: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24528097.svg)](https://doi.org/10.5281/zenodo.24528097)
+[![Формальная верификация: Lean 4](https://img.shields.io/badge/Formal%20Proof-Lean%204-purple.svg)](proofs/UnitaryEquivalence.lean)
+[![Model Context Protocol](https://img.shields.io/badge/MCP-Native%20Server-purple.svg)](https://modelcontextprotocol.io/)
+[![Интерактивная веб-версия](https://img.shields.io/badge/Live%20Web-qir--reversing.iqumnov.com-emerald.svg)](https://qir-reversing.iqumnov.com)
+[![Автор: Матвей Игумнов](https://img.shields.io/badge/Author-Matvei%20Igumnov-blue.svg)](https://github.com/Iqumnov)
+
+> **Интерактивное веб-приложение**: [https://qir-reversing.iqumnov.com](https://qir-reversing.iqumnov.com)  
+> Клиентский WebAssembly-анализатор текстового LLVM QIR (`.ll`) и бинарного биткода (`.bc`) без необходимости установки. Включает дисассемблирование в реальном времени, 2D визуализацию схем в ASCII/SVG, алгебраическую деобфускацию, экспорт в OpenQASM 3.0 и верификацию унитарной эквивалентности в $2^N$-мерном гильбертовом пространстве.
+
+---
+
+## 1. Архитектура платформы
+
+Проект построен как модульный Cargo-воркспейс на безопасном Rust с запретом небезопасного кода (`#![forbid(unsafe_code)]`) в математическом ядре и компиляцией в нативные бинарные файлы CLI, модули WebAssembly и разделяемые библиотеки C-ABI:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                            QIR REVERSING                               │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+         ┌──────────────────────────┼──────────────────────────┐
+         ▼                          ▼                          ▼
+┌──────────────────┐       ┌──────────────────┐       ┌──────────────────┐
+│   qir-core       │       │    qir-rev       │       │   qir-rev-mcp    │
+│ - Парсер биткода │       │ - Дисассемблер   │       │ - Сервер MCP для │
+│   и текстового IR│──────▶│ - 2D ASCII и SVG │       │   ИИ-агентов     │
+│ - Деобфускатор   │       │ - Деобфускация   │       │   (Claude/Cursor)│
+│ - Унитарный      │       │ - Верификация 2^N│       │                  │
+│   верификатор 2^N│       │ - OpenQASM 3.0   │       │                  │
+└──────────────────┘       └──────────────────┘       └──────────────────┘
+         │                          │                          │
+         ▼                          ▼                          ▼
+┌──────────────────┐       ┌──────────────────┐       ┌──────────────────┐
+│   rz-qir-plugin  │       │    qir-web       │       │  proofs/Lean 4   │
+│ - librz_qir.so   │       │ - Cloudflare     │       │ - Теоремы        │
+│ - Нативный C-ABI │       │   Pages / Worker │       │   унитарной      │
+│   плагин Rizin   │       │ - Клиентский     │       │   инвариантности │
+│   дисассемблера  │       │   WebAssembly    │       │                  │
+└──────────────────┘       └──────────────────┘       └──────────────────┘
+```
+
+---
+
+## 2. Основные возможности
+
+### 2.1 Высокоточный парсер LLVM QIR (`qir_core::parser`)
+- **Текстовый парсер без копирования (`.ll`)**: Прямое декодирование синтаксиса LLVM IR без сторонних трансляторов, строгое извлечение типов кубитов `%Qubit*`, битов измерений `%Result*` и параметров квантовых вентилей.
+- **Парсер бинарного биткода (`.bc`)**: Потоковый лексический анализ блоков `MODULE_BLOCK`, таблиц идентификаторов и таблиц символов биткода LLVM.
+
+### 2.2 Алгебраический деобфускатор коммутации (`qir_core::deobfuscator`)
+- **Сворачивание инволюций**: Идентификация и устранение соседних самообратных пар вентилей через скользящее окно с учетом коммутационных соотношений Паули:
+  $$H \cdot H = I, \quad X \cdot X = I, \quad Y \cdot Y = I, \quad Z \cdot Z = I, \quad CX \cdot CX = I, \quad CZ \cdot CZ = I$$
+- **Консолидация непрерывных вращений групп Ли**: Слияние последовательных параметрических фазовых поворотов вокруг одной оси:
+  $$R_z(\theta_1) \cdot R_z(\theta_2) = R_z(\theta_1 + \theta_2)$$
+  Если $(\theta_1 + \theta_2) \equiv 0 \pmod{2\pi}$, поворот схлопывается в тождественный оператор $I$.
+- **Отсечение мертвого квантового кода**: Построение обратного конуса причинности от инструкций измерения (`__quantum__qis__mz__body`) и удаление не влияющих на результат вспомогательных вентилей.
+
+### 2.3 Верификатор унитарного гильбертова пространства $2^N$ (`qir_core::unitary`)
+- **Плотный симулятор квантовых матриц**: Вычисление полного унитарного оператора $U_{\text{tot}} = \prod_{k=1}^m G_k$ в пространстве $(\mathbb{C}^2)^{\otimes N}$ с тензорным произведением Кронекера.
+- **Метрика точности квантового процесса (Process Fidelity)**: Расчет квантовой точности между исходной и оптимизированной схемой:
+  $$F(U_{\text{orig}}, U_{\text{opt}}) = \frac{1}{d^2} \left| \text{Tr}(U_{\text{orig}}^\dagger U_{\text{opt}}) \right|^2$$
+  где $d = 2^N$. Точность $F = 1.00000000$ строго доказывает сохранение исходного квантового алгоритма.
+- **Формальные доказательства в Lean 4**: Машинно-проверенные теоремы инвариантности унитарных групп Ли (`proofs/UnitaryEquivalence.lean`).
+
+---
+
+## 3. Быстрый старт и установка
+
+### Установка одной строкой:
+```bash
+# Linux / macOS
+curl -sSL https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.sh | bash
+
+# Windows PowerShell
+irm https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.ps1 | iex
+```
+
+### Сборка из исходников:
+```bash
+git clone https://github.com/Iqumnov/Qir-Reversing.git
+cd Qir-Reversing
+cargo build --release
+```
+
+### Примеры команд CLI:
+```bash
+# Дисассемблирование файла QIR
+./target/release/qir-rev disasm samples/bell_state.ll
+
+# Построение 2D ASCII топологии схемы
+./target/release/qir-rev circuit samples/bell_state.ll
+
+# Деобфускация и трансляция в OpenQASM 3.0
+./target/release/qir-rev deobf --qasm samples/obfuscated_circuit.ll
+
+# Полная математическая верификация унитарной эквивалентности
+./target/release/qir-rev verify samples/obfuscated_circuit.ll
+```
+
+---
+
+## 4. Результаты верификации
+
+| Образец схемы | Базовые опкоды | После деобфускации | Места обфускации | Доказательство ($U \equiv U_{\text{clean}}$) | Точность процесса ($F$) |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| `lr2_quantum_demo.ll` | 5 | 5 | 0 | Доказано | $1.00000000$ |
+| `lr2_obfuscated.ll` | 18 | 5 | 5 | Доказано | $1.00000000$ |
+| `bell_state.ll` | 5 | 5 | 0 | Доказано | $1.00000000$ |
+| `obfuscated_circuit.ll` | 18 | 5 | 5 | Доказано | $1.00000000$ |
+
+---
+
+## Лицензия
+
+Проект распространяется под открытой лицензией **Apache License 2.0** — подробности в файле [LICENSE](LICENSE).

@@ -47,6 +47,31 @@ class TestQIRDeobfuscator(unittest.TestCase):
 
         print("\n[OK] Deobfuscation verified: 100% equivalence to reference clean circuit achieved.")
 
+    def test_rotation_modulo_cancellation(self):
+        """Verify mathematical precision of rotation gate cancellation mod 2π."""
+        import math
+        from qir_parser import QuantumInstruction
+
+        # Case 1: Exact positive opposite angles (+θ and -θ)
+        g1 = QuantumInstruction(op="rz", qubits=[0], params=[1.2345])
+        g2 = QuantumInstruction(op="rz", qubits=[0], params=[-1.2345])
+        self.assertTrue(self.deobf._can_cancel_rotations(g1, g2))
+
+        # Case 2: Sum equals 2π with floating-point variance
+        g3 = QuantumInstruction(op="rx", qubits=[1], params=[1.5])
+        g4 = QuantumInstruction(op="rx", qubits=[1], params=[2.0 * math.pi - 1.5 + 1e-7])
+        self.assertTrue(self.deobf._can_cancel_rotations(g3, g4))
+
+        # Case 3: Negative 2π sum (-2π)
+        g5 = QuantumInstruction(op="ry", qubits=[2], params=[-1.0])
+        g6 = QuantumInstruction(op="ry", qubits=[2], params=[-(2.0 * math.pi - 1.0)])
+        self.assertTrue(self.deobf._can_cancel_rotations(g5, g6))
+
+        # Case 4: Non-canceling angles
+        g7 = QuantumInstruction(op="rz", qubits=[0], params=[0.5])
+        g8 = QuantumInstruction(op="rz", qubits=[0], params=[0.5])
+        self.assertFalse(self.deobf._can_cancel_rotations(g7, g8))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -37,7 +37,7 @@ $$U_{\text{clean}} = U_{\text{obfuscated}}$$
 * **Pattern Signature**: `INVERSE_ROTATION_CANCELLATION` / `CONTINUOUS_ROTATION_CONSOLIDATION`
 * **Severity**: `HIGH` / `MEDIUM`
 * **Mechanism**:
-  Phase rotations around the same axis form a continuous Lie group $U(1)$:
+  Phase rotations around the same axis form an abelian subgroup isomorphic to $U(1)$:
   $$R_z(\theta_1) \cdot R_z(\theta_2) = R_z(\theta_1 + \theta_2)$$
-  If $(\theta_1 + \theta_2) \equiv 0 \pmod{2\pi}$, the rotation collapses to Identity ($I$).
+  If $(\theta_1 + \theta_2) \equiv 0 \pmod{2\pi}$, the rotation collapses to Identity ($I$) up to an unobservable global phase ($e^{i \cdot 0} = 1$ or $e^{i\pi} = -1$).
 
