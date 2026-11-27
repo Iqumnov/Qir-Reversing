@@ -10,8 +10,12 @@ Demonstrates Cutter's Python Plugin Architecture:
 
 try:
     import cutter
-    from PySide2.QtWidgets import QDockWidget, QLabel, QVBoxLayout, QWidget, QPushButton
-    from PySide2.QtCore import Qt
+    try:
+        from PySide6.QtWidgets import QDockWidget, QLabel, QVBoxLayout, QWidget, QPushButton
+        from PySide6.QtCore import Qt
+    except ImportError:
+        from PySide2.QtWidgets import QDockWidget, QLabel, QVBoxLayout, QWidget, QPushButton
+        from PySide2.QtCore import Qt
     CUTTER_AVAILABLE = True
 except ImportError:
     CUTTER_AVAILABLE = False
@@ -57,6 +61,18 @@ class DummyQIRPlugin(cutter.CutterPlugin if CUTTER_AVAILABLE else object):
     version = "1.0.0"
     author = "Matvei Igumnov"
 
+    def getName(self):
+        return self.name
+
+    def getAuthor(self):
+        return self.author
+
+    def getDescription(self):
+        return self.description
+
+    def getVersion(self):
+        return self.version
+
     def setupPlugin(self):
         print(f"[✓] {self.name} v{self.version} registered in Cutter core.")
 
@@ -66,6 +82,9 @@ class DummyQIRPlugin(cutter.CutterPlugin if CUTTER_AVAILABLE else object):
         dock = DummyQIRDock(main)
         main.addDockWidget(Qt.RightDockWidgetArea, dock)
         print(f"[✓] {self.name} UI dock added to Cutter main window.")
+
+    def terminate(self):
+        print(f"[✓] {self.name} terminated.")
 
 
 def create_cutter_plugin():

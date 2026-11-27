@@ -6,7 +6,7 @@ Tactical web-based reverse engineering, deobfuscation, and circuit reconstructio
 
 ## ⚡ Architecture Overview
 
-The web suite is powered 100% by pure Rust WebAssembly (`wasm32-unknown-unknown` target of `qir-core`), ensuring exact mathematical parity with the native Rust CLI (`qir`) and native Rizin plugin (`librz_qir.so`).
+The web suite is powered 100% by pure Rust WebAssembly (`wasm32-unknown-unknown` target of `qir-core`), ensuring exact mathematical parity with the native Rust CLI (`qir-rev`) and native Rizin plugin (`librz_qir.so`).
 
 ### Pure Rust WebAssembly Execution Strategy
 
@@ -16,9 +16,9 @@ The web suite is powered 100% by pure Rust WebAssembly (`wasm32-unknown-unknown`
 │                                                                        │
 │   ┌────────────────────────────────────────────────────────────────┐   │
 │   │               Rust WebAssembly (web/wasm/qir_core.wasm)        │   │
-│   │   - Zero-Copy LLVM IR & Bitcode Parser                         │   │
+│   │   - Pure-Rust LLVM IR & Binary Bitcode (.bc) Decoder             │   │
 │   │   - Quantum Commutation & Discrete Phase Deobfuscator          │   │
-│   │   - 2^N Hilbert Space Unitary Equivalence & Fidelity Verifier  │   │
+│   │   - 2^N Hilbert Space & QMDD Equivalence Verifier (<=64q)      │   │
 │   │   - 2D ASCII & Dark Tactical Vector SVG Emitters               │   │
 │   └────────────────────────────────────────────────────────────────┘   │
 │            ▲                                                           │
@@ -53,14 +53,14 @@ To launch the web dashboard locally on your machine:
 ```bash
 cd web
 
-# Option A: Built-in Python 3 HTTP Server
-python3 -m http.server 8080
+# Option A: Node.js Full Dashboard & Local Edge API (Recommended)
+node server.js
 
-# Option B: Node.js static server
-npx serve -l 8080 .
+# Option B: Built-in Python 3 Static HTTP Server
+python3 -m http.server 8088
 ```
 
-Then open `http://localhost:8080` in your browser.
+Then open `http://localhost:8088` in your browser.
 
 ---
 
@@ -78,7 +78,7 @@ cd web
 npx wrangler login
 
 # Deploy static suite + Advanced Edge Functions to Cloudflare Pages
-npx wrangler pages deploy . --project-name=qir-quantum-reversing
+npx wrangler pages deploy . --project-name=qir-reversing
 ```
 
 #### Via GitHub / Git Repository:
@@ -90,7 +90,7 @@ npx wrangler pages deploy . --project-name=qir-quantum-reversing
    - **Build output directory**: `web`
 4. Click **Save and Deploy**.
 
-Cloudflare automatically provisions an address like `https://qir-quantum-reversing.pages.dev`.
+Cloudflare automatically provisions a `.pages.dev` preview URL (production deployment lives at `https://qir-reversing.iqumnov.com`).
 
 ---
 
@@ -117,15 +117,17 @@ The Cloudflare Worker / Pages edge engine exposes the following REST API endpoin
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
 | `/api/health` | `GET` | Health check & engine metadata. |
-| `/api/analyze` | `POST` | Disassembles QIR text, extracts qubit count, opcodes, and semantic comments. |
-| `/api/deobfuscate` | `POST` | Executes lookahead peephole optimizer, detects anomalies, and outputs clean QIR/QASM. |
-| `/api/circuit` | `POST` | Renders ASCII timeline diagram, vector SVG circuit, and OpenQASM 3.0. |
-| `/api/full` | `POST` | Comprehensive analysis bundle (Disassembly + Audit + Circuit + QASM). |
+| `/api/decode-bitcode` | `POST` | Decodes raw `.bc` (`application/octet-stream`) or JSON `bitcodeBase64` into textual LLVM IR. |
+| `/api/analyze` | `POST` | Disassembles QIR text or binary bitcode, extracting qubit count, opcodes, and semantics. |
+| `/api/deobfuscate` | `POST` | Executes lookahead commutation optimizer, detects anomalies, and outputs clean QIR/QASM. |
+| `/api/circuit` | `POST` | Renders ASCII timeline diagram and vector SVG circuit. |
+| `/api/verify` | `POST` | Verifies unitary equivalence up to 64 qubits (dense simulation + canonical QMDD). |
+| `/api/full` | `POST` | Comprehensive analysis bundle (Disassembly + Audit + Circuit + QASM + Verification). |
 
 ### Example cURL Request
 
 ```bash
-curl -X POST https://qir-quantum-reversing.pages.dev/api/deobfuscate \
+curl -X POST https://qir-reversing.iqumnov.com/api/deobfuscate \
   -H "Content-Type: application/json" \
   -d '{
     "code": "%Qubit = type opaque\ndeclare void @__quantum__qis__h__body(%Qubit*)\ndefine void @main() {\n  call void @__quantum__qis__h__body(%Qubit* null)\n  call void @__quantum__qis__h__body(%Qubit* null)\n  ret void\n}"
@@ -139,16 +141,22 @@ curl -X POST https://qir-quantum-reversing.pages.dev/api/deobfuscate \
   "originalCount": 2,
   "cleanCount": 0,
   "eliminatedCount": 2,
+  "liveQubits": 0,
   "obfuscationSeverityPct": 100.0,
   "findings": [
     {
-      "patternType": "IDENTITY_INVOLUTION_PAIR",
-      "severity": "HIGH",
-      "description": "Redundant self-inverse involutory pair: h · h = I on qubit q[0]",
-      "qubits": [0]
+      "id": 1,
+      "pattern_type": "IDENTITY_INVOLUTION_PAIR",
+      "severity": "High",
+      "description": "Redundant self-inverse involutory pair: h q[0] · h q[0] = I",
+      "qubits": [0],
+      "instruction_indices": [0, 1]
     }
   ],
-  "cleanQasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\n\nqubit[1] q;\nbit[0] r;\n\n"
+  "auditReport": "; ── QIR DEOBFUSCATION AUDIT REPORT ...",
+  "cleanQasm": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\n\nqubit[1] q;\n\n",
+  "cleanAscii": "; ── QUANTUM CIRCUIT TIMELINE DIAGRAM ...",
+  "cleanSvg": "<svg ...>...</svg>"
 }
 ```
 
@@ -157,16 +165,16 @@ curl -X POST https://qir-quantum-reversing.pages.dev/api/deobfuscate \
 ## 🛠 Features & Capabilities
 
 - **Strict Monochrome Brutalist UI**:
-  - Matches the ThinkPad ricing style (pitch black `#000000`, neutral greys `#888888`/`#e0e0e0`, high contrast `#ffffff`, zero blue-light fatigue).
-  - JetBrains Mono / Cascadia Code typography.
+  - Matches the ThinkPad ricing style (pitch black `#000000`, neutral greys `#828282`/`#ebebeb`, high contrast `#ffffff`, zero blue-light fatigue).
+  - `Hack` / `JetBrains Mono` / `SF Mono` / `Fira Code` monospace typography.
 - **Drag & Drop Ingestion**:
-  - Direct upload of `.ll` (LLVM IR textual representation) and `.bc` (LLVM bitcode container).
-  - Interactive source code editor with live syntax highlighting and one-click demo presets.
+  - Direct in-browser upload & pure-Rust WASM decoding of binary LLVM bitcode (`.bc` / `0x0B17C0DE` wrappers) as well as textual `.ll` IR files.
+  - Interactive monospace LLVM QIR source editor with reactive gate validation.
 - **Multi-Tab Tactical View**:
   1. `DISASSEMBLY`: Hex offsets, synthetic bytecode, quantum mnemonics, and semantic circuit theory comments.
-  2. `CIRCUIT`: Dynamic interactive SVG circuit diagram + 2D ASCII timeline matrix.
-  3. `ANTI-OBFUSCATION AUDIT`: Detected anomaly table, severity metrics, opcode reduction counters, and detailed reversing telemetry report.
+  2. `CIRCUIT`: Dynamic responsive vector SVG circuit diagram (while edge `/api/circuit` also provides 2D ASCII timelines).
+  3. `DEOBFUSCATION`: Detected anomaly table, severity metrics, opcode reduction counters, and canonical OpenQASM 3.0 output.
   4. `OPENQASM 3.0`: Clean canonical quantum assembly ready for execution on Qiskit, IBM Quantum, or Rigetti QPUs.
 - **Automated Test Suite**:
-  - Run `npm test` or `node test_suite.js` to execute 10 automated end-to-end tests covering parsing, disassembling, deobfuscating, and edge worker API integrity.
+  - Run `npm test` or `node test_suite.js` to execute the automated end-to-end test suite across all 7 validation suites covering parsing, pure-Rust `.bc` bitcode decoding, disassembling, circuit rendering, deobfuscation, $2^N$ & canonical QMDD equivalence verification, edge worker API routes, live Node HTTP binary serving, and UI logic.
 

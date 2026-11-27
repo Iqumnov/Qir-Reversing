@@ -9,9 +9,9 @@ To build all native binaries and test suites with zero external dependencies:
 ```
 
 This compiles:
-- `target/release/qir-rev`: Native CLI executable (alias: `qrev`).
+- `target/release/qir-rev`: Native CLI executable (`qrev` alias is linked automatically when installed via `install.sh` / `install.ps1`).
 - `target/release/qir-rev-mcp`: Model Context Protocol server.
-- `target/release/librz_qir.so`: Rizin / Cutter C-ABI architecture plugin.
+- `target/release/librz_qir.so`: Rizin / Cutter C-ABI architecture plugin (`.dylib` on macOS, `.dll` on Windows).
 
 ## 2. CLI Command Overview
 
@@ -33,8 +33,8 @@ Outputs visual timeline showing qubits, single-qubit gates, and multi-qubit rout
 ```
 Executes dead qubit pruning, involution collapse, and inverse rotation cancellation. Emits clean canonical OpenQASM 3.0.
 
-### 2.4 Formally Verify Unitary Equivalence
+### 2.4 Formally Verify Unitary Equivalence (Up to 64 Qubits)
 ```bash
-./target/release/qir-rev verify demo_programs/lr2_obfuscated.ll
+./target/release/qir-rev verify demo_programs/lr2_obfuscated.bc
 ```
-Computes $2^N \times 2^N$ unitaries, calculates Frobenius distance and quantum process fidelity, and verifies unitarity invariance ($U \cdot U^\dagger = I$).
+Executes exact dense $2^N \times 2^N$ unitary simulation ($\le 12$ qubits) or Canonical QMDD alternating checking ($13 \le N \le 64$ qubits), calculating Frobenius distance, quantum process fidelity, and unitarity invariance ($U \cdot U^\dagger = I$) directly on `.bc` bitcode or `.ll` text without `llvm-dis`.

@@ -1,8 +1,8 @@
 # Quantum Deobfuscation Passes
 
-**QIR Reversing** implements multi-pass static bytecode optimization passes designed to strip artificial obfuscation injected into quantum intermediate representations while strictly preserving unitary equivalence:
+**QIR Reversing** implements multi-pass static bytecode optimization passes designed to strip artificial obfuscation injected into quantum intermediate representations while strictly preserving unitary equivalence modulo global phase on observable qubits:
 
-$$U_{\text{clean}} = U_{\text{obfuscated}}$$
+$$U_{\text{clean}} \equiv e^{i\phi} U_{\text{obfuscated}}$$
 
 ---
 
@@ -11,10 +11,10 @@ $$U_{\text{clean}} = U_{\text{obfuscated}}$$
 * **Pattern Signature**: `DEAD_QUBIT_INJECTION`
 * **Severity**: `HIGH`
 * **Mechanism**:
-  Obfuscators inject auxiliary qubits ($q_{\text{dead}}$) with dummy single-qubit gates ($H$, $X$, $R_z$) or unmeasured ancillae to inflate circuit volume.
+  Obfuscators inject auxiliary qubits ($q_{\text{dead}}$) with dummy gates or unmeasured ancillae to inflate circuit volume.
 * **Algorithm**:
-  1. Construct measurement target set: $\mathcal{M} = \{ q \mid \exists \text{Mz}(q, r) \}$.
-  2. Compute backward causal cone: any multi-qubit gate ($CX$, $CZ$, $CCX$) entangled with a qubit in $\mathcal{M}$ is pulled into $\mathcal{M}$.
+  1. Construct measurement target set: $\mathcal{M} = \{ q \mid \exists \text{Mz}(q, r) \text{ or custom result readout} \}$.
+  2. Compute backward causal cone: any multi-qubit gate ($CX$, $CZ$, $\text{SWAP}$, $CCX$) entangled with a qubit in $\mathcal{M}$ is pulled into $\mathcal{M}$.
   3. Prune all gates acting exclusively on $Q \setminus \mathcal{M}$.
 
 ---
@@ -25,19 +25,25 @@ $$U_{\text{clean}} = U_{\text{obfuscated}}$$
 * **Severity**: `HIGH`
 * **Mechanism**:
   Unitary operators that satisfy $G^2 = I$:
-  $$H \cdot H = I, \quad X \cdot X = I, \quad Y \cdot Y = I, \quad Z \cdot Z = I$$
-  $$CX(c, t) \cdot CX(c, t) = I, \quad CZ(c, t) \cdot CZ(c, t) = I$$
+  $$H^2 = I, \quad X^2 = I, \quad Y^2 = I, \quad Z^2 = I, \quad CX^2 = I, \quad CZ^2 = I, \quad \text{SWAP}^2 = I, \quad CCX^2 = I$$
 * **Algorithm**:
-  Lookahead peephole scanner searches down the wire for consecutive identical involutory gates. If intervening gates commute with $G$, the pair is merged and reduced to the Identity operator.
+  Lookahead peephole scanner searches down the wire for matching involutory gates. If all intervening gates commute with $G$, the pair cancels to Identity.
 
 ---
 
-## 3. Continuous Rotation Consolidation (`RotationConsolidation`)
+## 3. Discrete Clifford+T Phase Group Reduction (`DiscretePhaseConsolidation`)
 
-* **Pattern Signature**: `INVERSE_ROTATION_CANCELLATION` / `CONTINUOUS_ROTATION_CONSOLIDATION`
-* **Severity**: `HIGH` / `MEDIUM`
+* **Pattern Signatures**: `DISCRETE_PHASE_CANCELLATION` (`HIGH`) / `DISCRETE_PHASE_CONSOLIDATION` (`MEDIUM`)
 * **Mechanism**:
-  Phase rotations around the same axis form an abelian subgroup isomorphic to $U(1)$:
-  $$R_z(\theta_1) \cdot R_z(\theta_2) = R_z(\theta_1 + \theta_2)$$
-  If $(\theta_1 + \theta_2) \equiv 0 \pmod{2\pi}$, the rotation collapses to Identity ($I$) up to an unobservable global phase ($e^{i \cdot 0} = 1$ or $e^{i\pi} = -1$).
+  Elements $\{T, S, Z, S^\dagger, T^\dagger\}$ form the cyclic subgroup $\mathbb{Z}_8$ under phase addition mod $8$: inverse pairs ($S \cdot S^\dagger$, $T \cdot T^\dagger$) cancel, while non-trivial sums fold (e.g., $T \cdot T \to S$, $S \cdot S \to Z$, $S^\dagger \cdot Z \to S$).
+
+---
+
+## 4. Continuous Rotation Consolidation (`RotationConsolidation`)
+
+* **Pattern Signatures**: `TRIVIAL_IDENTITY_ROTATION` (`HIGH`) / `INVERSE_ROTATION_CANCELLATION` (`HIGH`) / `CONTINUOUS_ROTATION_CONSOLIDATION` (`MEDIUM`)
+* **Mechanism**:
+  Single-qubit rotations around the same axis ($R_x$, $R_y$, $R_z$) satisfy:
+  $$R_\sigma(\theta_1) \cdot R_\sigma(\theta_2) = R_\sigma(\theta_1 + \theta_2)$$
+  Standalone or summed angles $\equiv 0 \pmod{2\pi}$ collapse to Identity up to unobservable global phase ($\pm 1$).
 

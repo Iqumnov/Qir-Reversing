@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag name (e.g. v1.0.0)'
+        required: true
+        default: 'v1.0.0'
 
 permissions:
   contents: write
@@ -28,18 +33,17 @@ jobs:
           mkdir -p dist/qir-rev-linux-x86_64
           cp target/release/qir-rev target/release/qir-rev-mcp target/release/librz_qir.so README.md LICENSE dist/qir-rev-linux-x86_64/
           cp -r qir_plugin dist/qir-rev-linux-x86_64/
+          rm -rf dist/qir-rev-linux-x86_64/qir_plugin/__pycache__
           tar -czvf qir-rev-linux-x86_64.tar.gz -C dist qir-rev-linux-x86_64
           cp target/wasm32-unknown-unknown/release/qir_core.wasm ./
 
-      - name: Upload Linux & Wasm Release Assets
-        uses: softprops/action-gh-release@v2
+      - name: Stage Linux & Wasm Artifacts
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.1.0' }}
-          files: |
+          name: release-linux
+          path: |
             qir-rev-linux-x86_64.tar.gz
             qir_core.wasm
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-windows:
     name: Build Windows (x86_64 CLI & MCP)
@@ -60,19 +64,17 @@ jobs:
             cp target/release/rz_qir.dll dist/qir-rev-windows-x86_64/
           fi
           cp -r qir_plugin dist/qir-rev-windows-x86_64/
+          rm -rf dist/qir-rev-windows-x86_64/qir_plugin/__pycache__
           7z a qir-rev-windows-x86_64.zip ./dist/qir-rev-windows-x86_64/*
 
-      - name: Upload Windows Release Assets
-        uses: softprops/action-gh-release@v2
+      - name: Stage Windows Artifacts
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.1.0' }}
-          files: |
-            qir-rev-windows-x86_64.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: release-windows
+          path: qir-rev-windows-x86_64.zip
 
   build-macos:
-    name: Build macOS (Universal Binaries)
+    name: Build macOS (ARM64 & x86_64)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -88,46 +90,52 @@ jobs:
           cargo build --release --target x86_64-apple-darwin --workspace
           mkdir -p dist-arm64 dist-x86_64
           cp target/aarch64-apple-darwin/release/qir-rev target/aarch64-apple-darwin/release/qir-rev-mcp README.md LICENSE dist-arm64/
+          if [ -f target/aarch64-apple-darwin/release/librz_qir.dylib ]; then
+            cp target/aarch64-apple-darwin/release/librz_qir.dylib dist-arm64/
+          fi
           cp -r qir_plugin dist-arm64/
+          rm -rf dist-arm64/qir_plugin/__pycache__
           cp target/x86_64-apple-darwin/release/qir-rev target/x86_64-apple-darwin/release/qir-rev-mcp README.md LICENSE dist-x86_64/
+          if [ -f target/x86_64-apple-darwin/release/librz_qir.dylib ]; then
+            cp target/x86_64-apple-darwin/release/librz_qir.dylib dist-x86_64/
+          fi
           cp -r qir_plugin dist-x86_64/
+          rm -rf dist-x86_64/qir_plugin/__pycache__
           tar -czvf qir-rev-macos-arm64.tar.gz -C dist-arm64 .
           tar -czvf qir-rev-macos-x86_64.tar.gz -C dist-x86_64 .
 
-      - name: Upload macOS Release Assets
-        uses: softprops/action-gh-release@v2
+      - name: Stage macOS Artifacts
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.1.0' }}
-          files: |
+          name: release-macos
+          path: |
             qir-rev-macos-arm64.tar.gz
             qir-rev-macos-x86_64.tar.gz
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  checksums:
-    name: Generate & Upload Release Checksums (SHA-256)
+  publish:
+    name: Generate SHA-256 Checksums & Publish GitHub Release
     needs: [build-linux, build-windows, build-macos]
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch and Hash Release Assets
-        shell: bash
+      - name: Download All Built Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate SHA256SUMS.txt
         run: |
-          TAG="${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.1.0' }}"
-          mkdir -p assets
-          cd assets
-          ASSET_URLS=$(curl -sSL "https://api.github.com/repos/${{ github.repository }}/releases/tags/${TAG}" | grep "browser_download_url" | grep -v "SHA256SUMS.txt" | cut -d '"' -f 4)
-          for url in $ASSET_URLS; do
-            echo "Fetching $(basename "$url")..."
-            curl -sSL -O "$url"
-          done
+          cd release-assets
           sha256sum * > ../SHA256SUMS.txt
           cd ..
-          cat SHA256SUMS.txt
+          mv SHA256SUMS.txt release-assets/
+          cat release-assets/SHA256SUMS.txt
 
-      - name: Upload SHA256SUMS.txt
+      - name: Publish Release & Checksums
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.1.0' }}
-          files: SHA256SUMS.txt
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          generate_release_notes: true
+          files: release-assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -23,10 +23,10 @@ $$R_z(\theta) = \begin{pmatrix} e^{-i\theta/2} & 0 \\ 0 & e^{i\theta/2} \end{pma
 
 ## 3. Equivalence Verification Metrics
 
-### 3.1 Frobenius Distance
-$$\|U_1 - U_2\|_F = \sqrt{\sum_{i,j} |(U_1)_{ij} - (U_2)_{ij}|^2}$$
+### 3.1 Phase-Aligned Frobenius Distance
+$$\min_{\phi \in [0, 2\pi)} \|U_1 - e^{i\phi} U_2\|_F = \min_{\phi} \sqrt{\sum_{i,j} |(U_1)_{ij} - e^{i\phi}(U_2)_{ij}|^2}$$
 
-A Frobenius distance $< 10^{-6}$ establishes numerical equivalence between original and deobfuscated circuits.
+A phase-aligned Frobenius distance $< 10^{-6}\sqrt{d}$ (together with unitarity drift $\|U \cdot U^\dagger - I\|_F < \text{unitarity\_tolerance}(N)$) establishes numerical equivalence modulo global phase between original and deobfuscated circuits.
 
 ### 3.2 Quantum Process Fidelity
 In physical quantum systems, global phase differences ($U_1 = e^{i\phi} U_2$) have no observable consequence. The phase-invariant quantum gate fidelity is:
@@ -34,4 +34,12 @@ In physical quantum systems, global phase differences ($U_1 = e^{i\phi} U_2$) ha
 $$F(U_1, U_2) = \frac{1}{d^2} \left| \text{Tr}(U_1^\dagger U_2) \right|^2$$
 
 Where $d = 2^N$. $F(U_1, U_2) = 1.0$ proves that both quantum circuits implement the identical physical transformation.
+
+## 4. Scaling Beyond 12 Qubits: Canonical QMDD Alternating Verification (`qir_core::dd`)
+
+Beyond 12 qubits natively (or 10 qubits in `wasm32`), dense $2^N \times 2^N$ matrices exceed practical memory bounds. `qir-core::dd` switches automatically to Canonical Quantum Multiple-Valued Decision Diagrams (QMDD) up to **64 qubits**:
+
+- **Canonical Normalization**: Uses hybrid max-magnitude first-edge canonical pivoting with quantized unique-table lookup and Frobenius-norm-consistent traces.
+- **Alternating Strategy ($G \to \mathbb{I} \leftarrow H^\dagger$)**: Interleaves left-multiplication by $G_i$ and right-multiplication by $H_j^\dagger$ with identity-seeking lookahead when $D \neq \mathbb{I}$, collapsing front/rear obfuscations immediately toward identity.
+- **Scale-Consistent Reversibility Bound**: Uses $\text{unitarity\_tolerance}(N) = 10^{-9} \cdot 2^{(N-12)/2}$ for $N > 12$ (matching dense $10^{-9}$ for $N \le 12$).
 

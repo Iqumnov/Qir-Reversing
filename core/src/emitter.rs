@@ -4,6 +4,9 @@
 use crate::types::{QuantumGate, QuantumInstruction, Qubit};
 use std::collections::HashSet;
 
+/// Maximum qubit wire count rendered in 2D ASCII/SVG diagrams to prevent unbounded allocations.
+pub const MAX_RENDERABLE_QUBITS: usize = 256;
+
 /// Formats disassembly, ASCII circuits, and OpenQASM 3.0.
 pub struct QirEmitter;
 
@@ -20,6 +23,14 @@ impl QirEmitter {
         );
 
         for inst in instructions {
+            if inst.is_control_flow {
+                out.push_str(&format!(
+                    "  0x{:06x}  -- -- -- --     {:<26} ; Classical control flow\n",
+                    inst.address,
+                    inst.raw_ir.trim()
+                ));
+                continue;
+            }
             let bytes = inst.gate.synthetic_opcode();
             let hex_str = format!(
                 "{:02x} {:02x} {:02x} {:02x}",
@@ -81,57 +92,176 @@ impl QirEmitter {
                     max_qubit = q.0;
                 }
             }
-            if let QuantumGate::Mz(_, r) = inst.gate {
-                if r.0 > max_result {
-                    max_result = r.0;
+            match &inst.gate {
+                QuantumGate::Mz(_, r) => {
+                    if r.0 > max_result {
+                        max_result = r.0;
+                    }
                 }
+                QuantumGate::Custom { results, .. } => {
+                    for r in results {
+                        if r.0 > max_result {
+                            max_result = r.0;
+                        }
+                    }
+                }
+                _ => {}
             }
         }
 
-        let num_qubits = (max_qubit + 1) as usize;
-        let num_results = (max_result + 1) as usize;
+        let num_qubits = (max_qubit.saturating_add(1)) as usize;
+        let num_results = (max_result.saturating_add(1)) as usize;
+        if num_qubits > MAX_RENDERABLE_QUBITS || num_results > MAX_RENDERABLE_QUBITS {
+            return format!(
+                "; Register count (qubits={}, results={}) exceeds ASCII diagram rendering limit ({})\n",
+                num_qubits, num_results, MAX_RENDERABLE_QUBITS
+            );
+        }
+        let label_width = format!("q[{}]: ", num_qubits.saturating_sub(1))
+            .len()
+            .max(format!("r[{}]: ", num_results.saturating_sub(1)).len());
 
-        let mut wires: Vec<String> = (0..num_qubits).map(|i| format!("q[{}]: ──", i)).collect();
+        let mut wires: Vec<String> = (0..num_qubits)
+            .map(|i| format!("{:<width$}──", format!("q[{}]: ", i), width = label_width))
+            .collect();
 
         for inst in instructions {
+            if inst.is_control_flow {
+                continue;
+            }
             let active = inst.gate.active_qubits();
             let active_set: HashSet<Qubit> = active.iter().copied().collect();
 
             match &inst.gate {
-                QuantumGate::H(q) => wires[q.0 as usize].push_str("[H]──"),
-                QuantumGate::X(q) => wires[q.0 as usize].push_str("[X]──"),
-                QuantumGate::Y(q) => wires[q.0 as usize].push_str("[Y]──"),
-                QuantumGate::Z(q) => wires[q.0 as usize].push_str("[Z]──"),
-                QuantumGate::S(q) => wires[q.0 as usize].push_str("[S]──"),
-                QuantumGate::Sdg(q) => wires[q.0 as usize].push_str("[S†]─"),
-                QuantumGate::T(q) => wires[q.0 as usize].push_str("[T]──"),
-                QuantumGate::Tdg(q) => wires[q.0 as usize].push_str("[T†]─"),
-                QuantumGate::Rx(_, q) => wires[q.0 as usize].push_str("[RX]─"),
-                QuantumGate::Ry(_, q) => wires[q.0 as usize].push_str("[RY]─"),
-                QuantumGate::Rz(_, q) => wires[q.0 as usize].push_str("[RZ]─"),
+                QuantumGate::H(q) => {
+                    if let Some(w) = wires.get_mut(q.0 as usize) {
+                        w.push_str("[H]──");
+                    }
+                }
+                QuantumGate::X(q) => {
+                    if let Some(w) = wires.get_mut(q.0 as usize) {
+                        w.push_str("[X]──");
+                    }
+                }
+                QuantumGate::Y(q) => {
+                    if let Some(w) = wires.get_mut(q.0 as usize) {
+                        w.push_str("[Y]──");
+                    }
+                }
+                QuantumGate::Z(q) => {
+                    if let Some(w) = wires.get_mut(q.0 as usize) {
+                        w.push_str("[Z]──");
+                    }
+                }
+                QuantumGate::S(q) => {
+                    if let Some(w) = wires.get_mut(q.0 as usize) {
+                        w.push_str("[S]──");
+                    }
+                }
+                QuantumGate::Sdg(q) => {
+                    if let Some(w) = wires.get_mut(q.0 as usize) {
+                        w.push_str("[S†]─");
+                    }
+                }
+                QuantumGate::T(q) => {
+                    if let Some(w) = wires.get_mut(q.0 as usize) {
+                        w.push_str("[T]──");
+                    }
+                }
+                QuantumGate::Tdg(q) => {
+                    if let Some(w) = wires.get_mut(q.0 as usize) {
+                        w.push_str("[T†]─");
+                    }
+                }
+                QuantumGate::Rx(_, q) => {
+                    if let Some(w) = wires.get_mut(q.0 as usize) {
+                        w.push_str("[RX]─");
+                    }
+                }
+                QuantumGate::Ry(_, q) => {
+                    if let Some(w) = wires.get_mut(q.0 as usize) {
+                        w.push_str("[RY]─");
+                    }
+                }
+                QuantumGate::Rz(_, q) => {
+                    if let Some(w) = wires.get_mut(q.0 as usize) {
+                        w.push_str("[RZ]─");
+                    }
+                }
                 QuantumGate::CX(c, t) => {
-                    wires[c.0 as usize].push_str("─●───");
-                    wires[t.0 as usize].push_str("─X───");
+                    if let Some(w) = wires.get_mut(c.0 as usize) {
+                        w.push_str("─●───");
+                    }
+                    if let Some(w) = wires.get_mut(t.0 as usize) {
+                        w.push_str("─X───");
+                    }
                 }
                 QuantumGate::CZ(c, t) => {
-                    wires[c.0 as usize].push_str("─●───");
-                    wires[t.0 as usize].push_str("─Z───");
+                    if let Some(w) = wires.get_mut(c.0 as usize) {
+                        w.push_str("─●───");
+                    }
+                    if let Some(w) = wires.get_mut(t.0 as usize) {
+                        w.push_str("─Z───");
+                    }
                 }
                 QuantumGate::SWAP(q1, q2) => {
-                    wires[q1.0 as usize].push_str("─×───");
-                    wires[q2.0 as usize].push_str("─×───");
+                    if let Some(w) = wires.get_mut(q1.0 as usize) {
+                        w.push_str("─×───");
+                    }
+                    if let Some(w) = wires.get_mut(q2.0 as usize) {
+                        w.push_str("─×───");
+                    }
                 }
                 QuantumGate::CCX(c1, c2, t) => {
-                    wires[c1.0 as usize].push_str("─●───");
-                    wires[c2.0 as usize].push_str("─●───");
-                    wires[t.0 as usize].push_str("─X───");
+                    if let Some(w) = wires.get_mut(c1.0 as usize) {
+                        w.push_str("─●───");
+                    }
+                    if let Some(w) = wires.get_mut(c2.0 as usize) {
+                        w.push_str("─●───");
+                    }
+                    if let Some(w) = wires.get_mut(t.0 as usize) {
+                        w.push_str("─X───");
+                    }
                 }
-                QuantumGate::Mz(q, _) => wires[q.0 as usize].push_str("[M]──"),
-                QuantumGate::Reset(q) => wires[q.0 as usize].push_str("[|0>]"),
-                _ => {}
+                QuantumGate::Mz(q, _) => {
+                    if let Some(w) = wires.get_mut(q.0 as usize) {
+                        w.push_str("[M]──");
+                    }
+                }
+                QuantumGate::Reset(q) => {
+                    if let Some(w) = wires.get_mut(q.0 as usize) {
+                        w.push_str("[|0>]");
+                    }
+                }
+                QuantumGate::Barrier(qs) => {
+                    if qs.is_empty() {
+                        for w in wires.iter_mut() {
+                            w.push_str("──║──");
+                        }
+                    } else {
+                        for q in qs {
+                            if let Some(w) = wires.get_mut(q.0 as usize) {
+                                w.push_str("──║──");
+                            }
+                        }
+                    }
+                }
+                QuantumGate::Custom { name, qubits, .. } => {
+                    let sym = if name == "mresetz" {
+                        "[M]──"
+                    } else {
+                        "[?]──"
+                    };
+                    for q in qubits {
+                        if let Some(w) = wires.get_mut(q.0 as usize) {
+                            w.push_str(sym);
+                        }
+                    }
+                }
             }
 
-            let (min_q, max_q) = if active.len() >= 2 {
+            let is_barrier = matches!(inst.gate, QuantumGate::Barrier(_));
+            let (min_q, max_q) = if !is_barrier && active.len() >= 2 {
                 let min = active.iter().map(|q| q.0).min().unwrap_or(0);
                 let max = active.iter().map(|q| q.0).max().unwrap_or(0);
                 (Some(min), Some(max))
@@ -159,9 +289,10 @@ impl QirEmitter {
             }
         }
 
-        let has_measurements = instructions
-            .iter()
-            .any(|i| matches!(i.gate, QuantumGate::Mz(_, _)));
+        let has_measurements = instructions.iter().any(|i| {
+            matches!(i.gate, QuantumGate::Mz(_, _))
+                || matches!(&i.gate, QuantumGate::Custom { name, results, .. } if name == "mresetz" || !results.is_empty())
+        });
         let mut out = String::new();
         out.push_str(
             "; ── QUANTUM CIRCUIT TIMELINE DIAGRAM ──────────────────────────────────────\n",
@@ -175,9 +306,10 @@ impl QirEmitter {
                 "; ── CLASSICAL MEASUREMENT REGISTERS ───────────────────────────────────────\n",
             );
             for r in 0..num_results {
+                let r_lbl = format!("{:<width$}", format!("r[{}]: ", r), width = label_width);
                 out.push_str(&format!(
-                    "r[{}]: ═══════════════════════════════════════════════════════════════════\n",
-                    r
+                    "{}═══════════════════════════════════════════════════════════════════\n",
+                    r_lbl
                 ));
             }
         }
@@ -196,19 +328,27 @@ impl QirEmitter {
         let max_q = instructions
             .iter()
             .flat_map(|inst| inst.gate.active_qubits())
-            .map(|q| q.0 + 1)
+            .map(|q| q.0.saturating_add(1))
             .max()
             .unwrap_or(0);
         let n_q = num_qubits.max(max_q).max(1);
 
         let max_r = instructions
             .iter()
-            .filter_map(|inst| {
-                if let QuantumGate::Mz(_, r) = inst.gate {
-                    Some(r.0 + 1)
-                } else {
-                    None
+            .filter_map(|inst| match &inst.gate {
+                QuantumGate::Mz(_, r) => Some(r.0.saturating_add(1)),
+                QuantumGate::Custom {
+                    name,
+                    qubits,
+                    results,
+                    ..
+                } if !results.is_empty() => results.iter().map(|r| r.0.saturating_add(1)).max(),
+                QuantumGate::Custom { name, qubits, .. }
+                    if name == "mresetz" && !qubits.is_empty() =>
+                {
+                    Some(qubits[0].0.saturating_add(1))
                 }
+                _ => None,
             })
             .max()
             .unwrap_or(0);
@@ -224,6 +364,11 @@ impl QirEmitter {
         qasm.push('\n');
 
         for inst in instructions {
+            if inst.is_control_flow {
+                let cf = inst.raw_ir.replace(['\r', '\n'], " ");
+                qasm.push_str(&format!("// control-flow: {}\n", cf.trim()));
+                continue;
+            }
             match &inst.gate {
                 QuantumGate::H(q) => qasm.push_str(&format!("h q[{}];\n", q.0)),
                 QuantumGate::X(q) => qasm.push_str(&format!("x q[{}];\n", q.0)),
@@ -233,9 +378,9 @@ impl QirEmitter {
                 QuantumGate::Sdg(q) => qasm.push_str(&format!("sdg q[{}];\n", q.0)),
                 QuantumGate::T(q) => qasm.push_str(&format!("t q[{}];\n", q.0)),
                 QuantumGate::Tdg(q) => qasm.push_str(&format!("tdg q[{}];\n", q.0)),
-                QuantumGate::Rx(theta, q) => qasm.push_str(&format!("rx({}) q[{}];\n", theta, q.0)),
-                QuantumGate::Ry(theta, q) => qasm.push_str(&format!("ry({}) q[{}];\n", theta, q.0)),
-                QuantumGate::Rz(theta, q) => qasm.push_str(&format!("rz({}) q[{}];\n", theta, q.0)),
+                QuantumGate::Rx(theta, q) => push_qasm_rotation(&mut qasm, "rx", *theta, q.0),
+                QuantumGate::Ry(theta, q) => push_qasm_rotation(&mut qasm, "ry", *theta, q.0),
+                QuantumGate::Rz(theta, q) => push_qasm_rotation(&mut qasm, "rz", *theta, q.0),
                 QuantumGate::CX(c, t) => qasm.push_str(&format!("cx q[{}], q[{}];\n", c.0, t.0)),
                 QuantumGate::CZ(c, t) => qasm.push_str(&format!("cz q[{}], q[{}];\n", c.0, t.0)),
                 QuantumGate::SWAP(q1, q2) => {
@@ -249,20 +394,35 @@ impl QirEmitter {
                 }
                 QuantumGate::Reset(q) => qasm.push_str(&format!("reset q[{}];\n", q.0)),
                 QuantumGate::Barrier(qs) => {
-                    let qs_str = qs
-                        .iter()
-                        .map(|q| format!("q[{}]", q.0))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    qasm.push_str(&format!("barrier {};\n", qs_str));
+                    if qs.is_empty() {
+                        qasm.push_str("barrier;\n");
+                    } else {
+                        let qs_str = qs
+                            .iter()
+                            .map(|q| format!("q[{}]", q.0))
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        qasm.push_str(&format!("barrier {};\n", qs_str));
+                    }
                 }
-                QuantumGate::Custom { name, qubits, .. } => {
-                    let qs_str = qubits
-                        .iter()
-                        .map(|q| format!("q[{}]", q.0))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    qasm.push_str(&format!("// {} {}\n", name, qs_str));
+                QuantumGate::Custom {
+                    name,
+                    qubits,
+                    results,
+                    ..
+                } => {
+                    if name == "mresetz" && !qubits.is_empty() {
+                        let r_idx = results.first().map(|r| r.0).unwrap_or(qubits[0].0);
+                        qasm.push_str(&format!("r[{}] = measure q[{}];\n", r_idx, qubits[0].0));
+                        qasm.push_str(&format!("reset q[{}];\n", qubits[0].0));
+                    } else {
+                        let qs_str = qubits
+                            .iter()
+                            .map(|q| format!("q[{}]", q.0))
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        qasm.push_str(&format!("// {} {}\n", name, qs_str));
+                    }
                 }
             }
         }
@@ -271,8 +431,22 @@ impl QirEmitter {
 
     /// Renders vector SVG quantum circuit diagram with dark tactical aesthetic.
     pub fn render_svg_circuit(instructions: &[QuantumInstruction], num_qubits: u32) -> String {
-        let n_q = num_qubits.max(1) as usize;
-        let n_cols = instructions.len().max(1);
+        let max_q_in_insts = instructions
+            .iter()
+            .flat_map(|i| i.gate.active_qubits())
+            .map(|q| q.0.saturating_add(1))
+            .max()
+            .unwrap_or(0);
+        let n_q = num_qubits.max(max_q_in_insts).max(1) as usize;
+        if n_q > MAX_RENDERABLE_QUBITS {
+            return format!(
+                "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 640 48\" width=\"640\" height=\"48\" style=\"background-color: #000000; font-family: 'JetBrains Mono', 'SF Mono', monospace;\"><text x=\"16\" y=\"28\" fill=\"#ffffff\" font-size=\"12\">Qubit register count ({}) exceeds SVG rendering limit ({})</text></svg>\n",
+                n_q, MAX_RENDERABLE_QUBITS
+            );
+        }
+        let visible_insts: Vec<&QuantumInstruction> =
+            instructions.iter().filter(|i| !i.is_control_flow).collect();
+        let n_cols = visible_insts.len().max(1);
 
         let col_width = 60.0;
         let row_height = 50.0;
@@ -305,7 +479,7 @@ impl QirEmitter {
         }
 
         // Draw gates
-        for (col, inst) in instructions.iter().enumerate() {
+        for (col, inst) in visible_insts.iter().enumerate() {
             let cx = start_x + (col as f64) * col_width + 20.0;
 
             match &inst.gate {
@@ -449,11 +623,61 @@ impl QirEmitter {
                     ));
                     svg.push('\n');
                 }
-                _ => {}
+                QuantumGate::Barrier(qs) => {
+                    let y1 = if qs.is_empty() {
+                        start_y - 16.0
+                    } else {
+                        start_y + (qs.iter().map(|q| q.0).min().unwrap_or(0) as f64) * row_height
+                            - 16.0
+                    };
+                    let y2 = if qs.is_empty() {
+                        start_y + ((n_q - 1) as f64) * row_height + 16.0
+                    } else {
+                        start_y
+                            + (qs.iter().map(|q| q.0).max().unwrap_or(0) as f64) * row_height
+                            + 16.0
+                    };
+                    svg.push_str(&format!(
+                        r##"  <line x1="{:.1}" y1="{:.1}" x2="{:.1}" y2="{:.1}" stroke="#666666" stroke-width="1.5" stroke-dasharray="4,4" />"##,
+                        cx, y1, cx, y2
+                    ));
+                    svg.push('\n');
+                }
+                QuantumGate::Custom { name, qubits, .. } => {
+                    let short_name: String = name.chars().take(6).collect();
+                    let safe_name = short_name
+                        .replace('&', "&amp;")
+                        .replace('<', "&lt;")
+                        .replace('>', "&gt;")
+                        .replace('"', "&quot;")
+                        .replace('\'', "&#39;");
+                    for q in qubits {
+                        let cy = start_y + (q.0 as f64) * row_height;
+                        svg.push_str(&format!(
+                            r##"  <rect x="{:.1}" y="{:.1}" width="36" height="28" rx="0" fill="#141414" stroke="#999999" stroke-width="1" />"##,
+                            cx - 18.0, cy - 14.0
+                        ));
+                        svg.push('\n');
+                        svg.push_str(&format!(
+                            r##"  <text x="{:.1}" y="{:.1}" fill="#cccccc" font-size="10" text-anchor="middle" dominant-baseline="middle">{}</text>"##,
+                            cx, cy, safe_name
+                        ));
+                        svg.push('\n');
+                    }
+                }
             }
         }
 
         svg.push_str("</svg>\n");
         svg
     }
+}
+
+fn push_qasm_rotation(out: &mut String, op: &str, theta: f64, qubit: u32) {
+    if !theta.is_finite() {
+        out.push_str(&format!("// invalid non-finite {} q[{}];\n", op, qubit));
+        return;
+    }
+    let clean = if theta.abs() == 0.0 { 0.0 } else { theta };
+    out.push_str(&format!("{}({}) q[{}];\n", op, clean, qubit));
 }

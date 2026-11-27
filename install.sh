@@ -11,7 +11,7 @@
 set -euo pipefail
 
 REPO="Iqumnov/Qir-Reversing"
-VERSION="${QIR_VERSION:-v0.1.0}"
+VERSION="${QIR_VERSION:-latest}"
 
 # ANSI Colors (Monochrome Tactical)
 BOLD="\033[1m"
@@ -75,29 +75,38 @@ trap cleanup EXIT
 # Resolve candidate archive names
 ARCHIVE_CANDIDATES=()
 if [ "${PLATFORM}" = "linux" ]; then
-    ARCHIVE_CANDIDATES=(
-        "qir-rev-linux-x86_64.tar.gz"
-    )
+    if [ "${TARGET_ARCH}" = "x86_64" ]; then
+        ARCHIVE_CANDIDATES=(
+            "qir-rev-linux-x86_64.tar.gz"
+        )
+    fi
 elif [ "${PLATFORM}" = "macos" ]; then
     if [ "${TARGET_ARCH}" = "arm64" ]; then
         ARCHIVE_CANDIDATES=("qir-rev-macos-arm64.tar.gz")
-    else
+    elif [ "${TARGET_ARCH}" = "x86_64" ]; then
         ARCHIVE_CANDIDATES=("qir-rev-macos-x86_64.tar.gz")
     fi
 fi
 
 if [ "${#ARCHIVE_CANDIDATES[@]}" -gt 0 ] && [ "${QIR_FORCE_BUILD:-0}" != "1" ]; then
     for ARCHIVE_NAME in "${ARCHIVE_CANDIDATES[@]}"; do
-        TARBALL_URL="https://github.com/${REPO}/releases/download/${VERSION}/${ARCHIVE_NAME}"
+        if [ "${VERSION}" = "latest" ]; then
+            TARBALL_URL="https://github.com/${REPO}/releases/latest/download/${ARCHIVE_NAME}"
+        else
+            TARBALL_URL="https://github.com/${REPO}/releases/download/${VERSION}/${ARCHIVE_NAME}"
+        fi
         echo -e "${GREEN}[+]${RESET} Checking release asset: ${DIM}${ARCHIVE_NAME}${RESET}"
 
         if curl -sSLf "${TARBALL_URL}" -o "${TEMP_DIR}/${ARCHIVE_NAME}" 2>/dev/null; then
             echo -e "${GREEN}[+]${RESET} Extracting payload..."
-            tar -xzf "${TEMP_DIR}/${ARCHIVE_NAME}" -C "${TEMP_DIR}"
+            if ! tar -xzf "${TEMP_DIR}/${ARCHIVE_NAME}" -C "${TEMP_DIR}" 2>/dev/null; then
+                echo -e "${YELLOW}[!] Failed to extract ${ARCHIVE_NAME}; skipping asset.${RESET}"
+                continue
+            fi
             
             # 4.1 Locate and Install CLI & MCP Executables
-            CLI_BIN="$(find "${TEMP_DIR}" -type f \( -name "qir-rev" -o -name "qir" \) | head -n 1)"
-            MCP_BIN="$(find "${TEMP_DIR}" -type f \( -name "qir-rev-mcp" -o -name "qir-mcp" \) | head -n 1)"
+            CLI_BIN="$(find "${TEMP_DIR}" -type f \( -name "qir-rev" -o -name "qir" \) | head -n 1 || true)"
+            MCP_BIN="$(find "${TEMP_DIR}" -type f \( -name "qir-rev-mcp" -o -name "qir-mcp" \) | head -n 1 || true)"
 
             if [ -n "${CLI_BIN}" ] && [ -f "${CLI_BIN}" ]; then
                 mkdir -p "${INSTALL_DIR}"
@@ -111,19 +120,24 @@ if [ "${#ARCHIVE_CANDIDATES[@]}" -gt 0 ] && [ "${QIR_FORCE_BUILD:-0}" != "1" ]; 
                     ln -sf "${INSTALL_DIR}/qir-rev-mcp" "${INSTALL_DIR}/qir-mcp"
                 fi
 
-                # 4.2 Locate and Install Native Rizin Plugin (librz_qir.so)
-                PLUGIN_LIB="$(find "${TEMP_DIR}" -type f -name "librz_qir.so" | head -n 1 || true)"
+                # 4.2 Locate and Install Native Rizin Plugin (librz_qir.so / librz_qir.dylib)
+                PLUGIN_LIB="$(find "${TEMP_DIR}" -type f \( -name "librz_qir.so" -o -name "librz_qir.dylib" \) | head -n 1 || true)"
                 if [ -n "${PLUGIN_LIB}" ] && [ -f "${PLUGIN_LIB}" ]; then
                     RIZIN_PLUGIN_DIR="$HOME/.local/share/rizin/plugins"
                     mkdir -p "${RIZIN_PLUGIN_DIR}" 2>/dev/null || true
-                    cp "${PLUGIN_LIB}" "${RIZIN_PLUGIN_DIR}/librz_qir.so"
-                    echo -e "${GREEN}[✓]${RESET} Rizin Native Plugin installed to: ${DIM}${RIZIN_PLUGIN_DIR}/librz_qir.so${RESET}"
+                    PLUGIN_EXT="${PLUGIN_LIB##*.}"
+                    cp "${PLUGIN_LIB}" "${RIZIN_PLUGIN_DIR}/librz_qir.${PLUGIN_EXT}"
+                    echo -e "${GREEN}[✓]${RESET} Rizin Native Plugin installed to: ${DIM}${RIZIN_PLUGIN_DIR}/librz_qir.${PLUGIN_EXT}${RESET}"
                 fi
 
                 # 4.3 Locate and Install Cutter GUI Python Plugin (qir_plugin)
                 PLUGIN_DIR_SRC="$(find "${TEMP_DIR}" -type d -name "qir_plugin" | head -n 1 || true)"
                 if [ -n "${PLUGIN_DIR_SRC}" ] && [ -d "${PLUGIN_DIR_SRC}" ]; then
-                    CUTTER_PLUGIN_DIR="$HOME/.local/share/rizin/cutter/plugins/python"
+                    if [ "${PLATFORM}" = "macos" ]; then
+                        CUTTER_PLUGIN_DIR="$HOME/Library/Application Support/rizin/cutter/plugins/python"
+                    else
+                        CUTTER_PLUGIN_DIR="$HOME/.local/share/rizin/cutter/plugins/python"
+                    fi
                     mkdir -p "${CUTTER_PLUGIN_DIR}" 2>/dev/null || true
                     rm -rf "${CUTTER_PLUGIN_DIR}/qir_plugin"
                     cp -r "${PLUGIN_DIR_SRC}" "${CUTTER_PLUGIN_DIR}/"
@@ -143,10 +157,25 @@ if [ "${DOWNLOAD_SUCCESS}" -eq 0 ]; then
     echo -e "${YELLOW}[*]${RESET} Pre-compiled binary unavailable or skipped. Compiling via Cargo..."
     if command -v cargo &>/dev/null; then
         echo -e "${GREEN}[+]${RESET} Rust toolchain detected: $(cargo --version)"
-        cargo install --git "https://github.com/${REPO}" --bin qir-rev --bin qir-rev-mcp --force || \
-        cargo install --git "https://github.com/${REPO}" qir-cli qir-mcp --force
-        INSTALL_DIR="${CARGO_HOME:-$HOME/.cargo}/bin"
-        [ -f "${INSTALL_DIR}/qir-rev" ] && ln -sf "${INSTALL_DIR}/qir-rev" "${INSTALL_DIR}/qrev"
+        cargo install --git "https://github.com/${REPO}" qir-cli --force
+        cargo install --git "https://github.com/${REPO}" qir-mcp --force
+        CARGO_BIN_DIR="${CARGO_HOME:-$HOME/.cargo}/bin"
+        EXE_EXT=""
+        if [ "${PLATFORM}" = "windows" ]; then
+            EXE_EXT=".exe"
+        fi
+        mkdir -p "${INSTALL_DIR}"
+        if [ "${CARGO_BIN_DIR}" != "${INSTALL_DIR}" ]; then
+            [ -f "${CARGO_BIN_DIR}/qir-rev${EXE_EXT}" ] && ln -sf "${CARGO_BIN_DIR}/qir-rev${EXE_EXT}" "${INSTALL_DIR}/qir-rev${EXE_EXT}"
+            [ -f "${CARGO_BIN_DIR}/qir-rev-mcp${EXE_EXT}" ] && ln -sf "${CARGO_BIN_DIR}/qir-rev-mcp${EXE_EXT}" "${INSTALL_DIR}/qir-rev-mcp${EXE_EXT}"
+        fi
+        if [ -f "${INSTALL_DIR}/qir-rev${EXE_EXT}" ] || [ -L "${INSTALL_DIR}/qir-rev${EXE_EXT}" ]; then
+            ln -sf "${INSTALL_DIR}/qir-rev${EXE_EXT}" "${INSTALL_DIR}/qrev${EXE_EXT}"
+            ln -sf "${INSTALL_DIR}/qir-rev${EXE_EXT}" "${INSTALL_DIR}/qir${EXE_EXT}"
+        fi
+        if [ -f "${INSTALL_DIR}/qir-rev-mcp${EXE_EXT}" ] || [ -L "${INSTALL_DIR}/qir-rev-mcp${EXE_EXT}" ]; then
+            ln -sf "${INSTALL_DIR}/qir-rev-mcp${EXE_EXT}" "${INSTALL_DIR}/qir-mcp${EXE_EXT}"
+        fi
         echo -e "${GREEN}[✓]${RESET} Binaries compiled and installed via Cargo."
     else
         echo -e "${RED}[!] Error: Pre-compiled binary unavailable for ${PLATFORM}-${TARGET_ARCH} and Cargo is not installed.${RESET}"
@@ -175,13 +204,17 @@ if command -v "${INSTALL_DIR}/qir-rev-mcp" &>/dev/null || [ -f "${INSTALL_DIR}/q
 fi
 if [ -f "$HOME/.local/share/rizin/plugins/librz_qir.so" ]; then
     echo -e "${GREEN}[✓] Rizin Plugin:${RESET}     $HOME/.local/share/rizin/plugins/librz_qir.so"
+elif [ -f "$HOME/.local/share/rizin/plugins/librz_qir.dylib" ]; then
+    echo -e "${GREEN}[✓] Rizin Plugin:${RESET}     $HOME/.local/share/rizin/plugins/librz_qir.dylib"
 fi
 if [ -d "$HOME/.local/share/rizin/cutter/plugins/python/qir_plugin" ]; then
     echo -e "${GREEN}[✓] Cutter GUI Dock:${RESET}  $HOME/.local/share/rizin/cutter/plugins/python/qir_plugin"
+elif [ -d "$HOME/Library/Application Support/rizin/cutter/plugins/python/qir_plugin" ]; then
+    echo -e "${GREEN}[✓] Cutter GUI Dock:${RESET}  $HOME/Library/Application Support/rizin/cutter/plugins/python/qir_plugin"
 fi
 
 # 8. MCP Configuration Example
-echo -e "\n${BOLD}${WHITE}AI AGENT CONFIGURATION (Claude Desktop / Cursor / Antigravity):${RESET}"
+echo -e "\n${BOLD}${WHITE}AI AGENT CONFIGURATION (Claude Desktop / Cursor / MCP Hosts):${RESET}"
 cat << 'EOF'
 {
   "mcpServers": {

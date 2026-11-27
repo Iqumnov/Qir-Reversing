@@ -58,6 +58,45 @@ class TestQIRParser(unittest.TestCase):
         q2_ops = [i for i in gates if 2 in i.qubits]
         self.assertEqual(len(q2_ops), 5, "5 dummy operations on dead qubit q2")
 
+    def test_samples_and_grover_fixture_parsing(self):
+        grover_ll = os.path.join(BASE_DIR, "samples", "grover_2qubit.ll")
+        bell_bc = os.path.join(BASE_DIR, "samples", "bell_state.bc")
+        obf_bc = os.path.join(BASE_DIR, "samples", "obfuscated_circuit.bc")
+        self.assertTrue(os.path.exists(grover_ll))
+        g_insts = self.parser.parse_file(grover_ll)
+        self.assertEqual(len([i for i in g_insts if not i.is_control_flow]), 14)
+        self.assertEqual(len([i for i in self.parser.parse_file(bell_bc) if not i.is_control_flow]), 5)
+        self.assertEqual(len([i for i in self.parser.parse_file(obf_bc) if not i.is_control_flow]), 18)
+
+    def test_bitcode_wrapper_magic_and_rz_lazy_import(self):
+        import struct
+        import tempfile
+        import rz_qir_plugin
+
+        # rz_qir_plugin must import cleanly even when optional rzpipe is unavailable
+        self.assertTrue(hasattr(rz_qir_plugin, "RzQIRPlugin"))
+
+        # Verify LLVM bitcode wrapper (0x0B17C0DE little-endian) detection dispatches to parse_bitcode
+        wrapper = struct.pack("<IIIII", 0x0B17C0DE, 0, 20, 4, 0) + b"\x42\x43\xc0\xde"
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as tf:
+            tf.write(wrapper)
+            tmp_path = tf.name
+        called = []
+        orig_parse_bc = self.parser.parse_bitcode
+        try:
+            def spy_parse_bitcode(fp, raw_bytes=None):
+                called.append((fp, raw_bytes))
+                return []
+
+            self.parser.parse_bitcode = spy_parse_bitcode
+            self.parser.parse_file(tmp_path)
+            self.assertEqual(len(called), 1)
+            self.assertEqual(called[0][1][:4], b"\xde\xc0\x17\x0b")
+        finally:
+            self.parser.parse_bitcode = orig_parse_bc
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
 
 if __name__ == "__main__":
     unittest.main()

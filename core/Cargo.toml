@@ -3,6 +3,7 @@ name = "qir-core"
 description = "High-performance memory-safe LLVM QIR parsing, quantum disassembly, and deobfuscation engine"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true

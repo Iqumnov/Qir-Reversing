@@ -11,10 +11,6 @@ Integrates directly into Cutter (Qt5/Qt6 GUI for Rizin):
 import sys
 import os
 
-_PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
-if _PLUGIN_DIR not in sys.path:
-    sys.path.insert(0, _PLUGIN_DIR)
-
 CUTTER_AVAILABLE = False
 try:
     import cutter  # type: ignore
@@ -23,13 +19,15 @@ except ImportError:
     cutter = None
 
 QT_AVAILABLE = False
+QPalette = None
+QColor = None
 try:
     from PySide6.QtWidgets import (  # type: ignore
         QDockWidget, QWidget, QVBoxLayout, QHBoxLayout,
         QPushButton, QLabel, QTextEdit, QTabWidget, QFileDialog
     )
-    from PySide6.QtGui import QFont  # type: ignore
-    from PySide6.QtCore import Qt, QObject, QEvent  # type: ignore
+    from PySide6.QtGui import QFont, QPalette, QColor  # type: ignore
+    from PySide6.QtCore import Qt  # type: ignore
     QT_AVAILABLE = True
 except ImportError:
     try:
@@ -37,20 +35,23 @@ except ImportError:
             QDockWidget, QWidget, QVBoxLayout, QHBoxLayout,
             QPushButton, QLabel, QTextEdit, QTabWidget, QFileDialog
         )
-        from PySide2.QtGui import QFont  # type: ignore
-        from PySide2.QtCore import Qt, QObject, QEvent  # type: ignore
+        from PySide2.QtGui import QFont, QPalette, QColor  # type: ignore
+        from PySide2.QtCore import Qt  # type: ignore
         QT_AVAILABLE = True
     except ImportError:
         QT_AVAILABLE = False
 
-try:
+if __package__:
+    from .qir_parser import QIRParser  # type: ignore
+    from .qir_disasm import QIRDisassembler  # type: ignore
+    from .qir_deobfuscator import QIRDeobfuscator  # type: ignore
+else:
+    _PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
+    if _PLUGIN_DIR not in sys.path:
+        sys.path.insert(0, _PLUGIN_DIR)
     from qir_parser import QIRParser  # type: ignore
     from qir_disasm import QIRDisassembler  # type: ignore
     from qir_deobfuscator import QIRDeobfuscator  # type: ignore
-except ImportError:
-    from qir_plugin.qir_parser import QIRParser  # type: ignore
-    from qir_plugin.qir_disasm import QIRDisassembler  # type: ignore
-    from qir_plugin.qir_deobfuscator import QIRDeobfuscator  # type: ignore
 
 
 TACTICAL_QSS = """
@@ -188,10 +189,10 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
 """
 
 
-class QIRInspectorDock(QDockWidget if CUTTER_AVAILABLE else object):
+class QIRInspectorDock(QDockWidget if (CUTTER_AVAILABLE and QT_AVAILABLE) else object):
     """Interactive Cutter Dock for Quantum Bytecode Disassembly & Deobfuscation."""
     def __init__(self, parent=None):
-        if not CUTTER_AVAILABLE:
+        if not (CUTTER_AVAILABLE and QT_AVAILABLE):
             return
         super().__init__("QIR Reversing", parent)
         self.setObjectName("QIRInspectorDock")
@@ -268,40 +269,60 @@ class QIRInspectorDock(QDockWidget if CUTTER_AVAILABLE else object):
             self.load_qir_file(file_path)
 
     def load_qir_file(self, filepath):
-        self.current_file = filepath
-        self.parser.parse_file(filepath)
-        self.on_disasm_clicked()
+        self.txt_circuit.setPlainText("; Click 'Circuit' to render timeline diagram for the loaded file.")
+        self.txt_deobf.setPlainText("; Click 'Deobfuscate' to audit and simplify the loaded file.")
+        try:
+            insts = self.parser.parse_file(filepath)
+            self.current_file = filepath
+            out = self.disasm.format_disassembly(insts, filepath)
+            self.txt_disasm.setPlainText(out)
+            self.tabs.setCurrentIndex(0)
+        except Exception as err:
+            self.current_file = ""
+            self.txt_disasm.setPlainText(f"; Failed to parse {os.path.basename(filepath)}: {err}")
+            self.tabs.setCurrentIndex(0)
 
     def on_disasm_clicked(self):
         if not self.current_file:
             self.txt_disasm.setPlainText("; Please open a QIR bytecode file (.bc or .ll) first.")
             return
-        out = self.disasm.disassemble_file(self.current_file)
-        self.txt_disasm.setPlainText(out)
+        try:
+            if self.parser.instructions:
+                out = self.disasm.format_disassembly(self.parser.instructions, self.current_file)
+            else:
+                out = self.disasm.disassemble_file(self.current_file)
+            self.txt_disasm.setPlainText(out)
+        except Exception as err:
+            self.txt_disasm.setPlainText(f"; Disassembly error: {err}")
         self.tabs.setCurrentIndex(0)
 
     def on_circuit_clicked(self):
         if not self.current_file:
             self.txt_circuit.setPlainText("; No QIR bytecode loaded.")
             return
-        diagram = self.disasm.render_circuit_diagram()
-        self.txt_circuit.setPlainText(diagram)
+        try:
+            cleaned = self.deobf.deobfuscate(self.parser.instructions)
+            diagram = self.disasm.render_circuit_diagram(cleaned)
+            self.txt_circuit.setPlainText(diagram)
+        except Exception as err:
+            self.txt_circuit.setPlainText(f"; Circuit render error: {err}")
         self.tabs.setCurrentIndex(1)
 
     def on_deobf_clicked(self):
         if not self.current_file:
             self.txt_deobf.setPlainText("; No QIR bytecode loaded.")
             return
-        instructions = self.parser.instructions
-        findings = self.deobf.analyze(instructions)
-        report = self.deobf.format_report()
+        try:
+            instructions = self.parser.instructions
+            cleaned = self.deobf.deobfuscate(instructions)
+            report = self.deobf.format_report()
+            clean_dis = self.disasm.format_disassembly(cleaned, self.current_file + " [DEOBFUSCATED]")
+            clean_circ = self.disasm.render_circuit_diagram(cleaned)
 
-        cleaned = self.deobf.deobfuscate(instructions)
-        clean_dis = self.disasm.format_disassembly(cleaned, self.current_file + " [DEOBFUSCATED]")
-        clean_circ = self.disasm.render_circuit_diagram(cleaned)
-
-        full_output = f"{report}\n\n[+] CANONICAL DEOBFUSCATED ASSEMBLY:\n{clean_dis}\n\n{clean_circ}"
-        self.txt_deobf.setPlainText(full_output)
+            full_output = f"{report}\n\n[+] CANONICAL DEOBFUSCATED ASSEMBLY:\n{clean_dis}\n\n{clean_circ}"
+            self.txt_deobf.setPlainText(full_output)
+        except Exception as err:
+            self.txt_deobf.setPlainText(f"; Deobfuscation error: {err}")
         self.tabs.setCurrentIndex(2)
 
 
@@ -311,11 +332,23 @@ class QIRCutterPlugin(cutter.CutterPlugin if CUTTER_AVAILABLE else object):
     version = "1.0.0"
     author = "Matvei Igumnov"
 
+    def getName(self):
+        return self.name
+
+    def getAuthor(self):
+        return self.author
+
+    def getDescription(self):
+        return self.description
+
+    def getVersion(self):
+        return self.version
+
     def setupPlugin(self):
         print(f"[✓] {self.name} v{self.version} initialized in Cutter core.")
 
     def setupInterface(self, main):
-        if not CUTTER_AVAILABLE:
+        if not (CUTTER_AVAILABLE and QT_AVAILABLE):
             return
         dock = QIRInspectorDock(main)
         main.addDockWidget(Qt.RightDockWidgetArea, dock)
@@ -324,26 +357,6 @@ class QIRCutterPlugin(cutter.CutterPlugin if CUTTER_AVAILABLE else object):
         dock.show()
         dock.raise_()
         print(f"[✓] Added QIR Inspector panel to Cutter interface.")
-
-        # Apply monochrome tactical palette to Cutter main window
-        try:
-            from PySide6.QtGui import QPalette, QColor
-            palette = QPalette()
-            palette.setColor(QPalette.Window, QColor("#000000"))
-            palette.setColor(QPalette.WindowText, QColor("#ebebeb"))
-            palette.setColor(QPalette.Base, QColor("#000000"))
-            palette.setColor(QPalette.AlternateBase, QColor("#0c0c0c"))
-            palette.setColor(QPalette.ToolTipBase, QColor("#000000"))
-            palette.setColor(QPalette.ToolTipText, QColor("#ffffff"))
-            palette.setColor(QPalette.Text, QColor("#ebebeb"))
-            palette.setColor(QPalette.Button, QColor("#0c0c0c"))
-            palette.setColor(QPalette.ButtonText, QColor("#ebebeb"))
-            palette.setColor(QPalette.BrightText, QColor("#ffffff"))
-            palette.setColor(QPalette.Highlight, QColor("#282828"))
-            palette.setColor(QPalette.HighlightedText, QColor("#ffffff"))
-            main.setPalette(palette)
-        except Exception:
-            pass
 
         # Ensure native menubar is disabled so the top menu bar is ALWAYS visible inside Cutter's window
         try:
@@ -367,9 +380,9 @@ class QIRCutterPlugin(cutter.CutterPlugin if CUTTER_AVAILABLE else object):
                     fn = c.getFilename()
             if not fn and len(sys.argv) > 1:
                 cand = sys.argv[-1]
-                if cand.endswith(".bc") or cand.endswith(".ll"):
+                if cand.lower().endswith((".bc", ".ll")):
                     fn = cand
-            if fn and os.path.exists(fn) and (fn.endswith(".bc") or fn.endswith(".ll")):
+            if fn and os.path.exists(fn) and fn.lower().endswith((".bc", ".ll")):
                 dock.load_qir_file(fn)
                 print(f"[✓] Auto-loaded QIR file into Inspector: {fn}")
         except Exception as e:

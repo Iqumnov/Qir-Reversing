@@ -149,23 +149,48 @@ impl QuantumGate {
             QuantumGate::SWAP(q1, q2) => (0x12, q1.0 as u8, q2.0 as u8, 0),
             QuantumGate::CCX(c1, c2, t) => (0x13, c1.0 as u8, c2.0 as u8, t.0 as u8),
             QuantumGate::Rx(theta, q) => {
-                let deg = ((theta.abs() * 180.0 / std::f64::consts::PI).round() as u32 % 360) as u8;
-                (0x20, q.0 as u8, deg, 0)
+                let (lo, hi) = encode_rotation_degrees(*theta);
+                (0x20, q.0 as u8, lo, hi)
             }
             QuantumGate::Ry(theta, q) => {
-                let deg = ((theta.abs() * 180.0 / std::f64::consts::PI).round() as u32 % 360) as u8;
-                (0x21, q.0 as u8, deg, 0)
+                let (lo, hi) = encode_rotation_degrees(*theta);
+                (0x21, q.0 as u8, lo, hi)
             }
             QuantumGate::Rz(theta, q) => {
-                let deg = ((theta.abs() * 180.0 / std::f64::consts::PI).round() as u32 % 360) as u8;
-                (0x22, q.0 as u8, deg, 0)
+                let (lo, hi) = encode_rotation_degrees(*theta);
+                (0x22, q.0 as u8, lo, hi)
             }
             QuantumGate::Mz(q, r) => (0x30, q.0 as u8, r.0 as u8, 0),
             QuantumGate::Reset(q) => (0x3f, q.0 as u8, 0, 0),
+            QuantumGate::Barrier(_) => (0x50, 0, 0, 0),
+            QuantumGate::Custom {
+                name,
+                qubits,
+                results,
+                ..
+            } if name == "mresetz" => (
+                0x30,
+                qubits.first().map(|q| q.0 as u8).unwrap_or(0),
+                results.first().map(|r| r.0 as u8).unwrap_or(0),
+                0,
+            ),
             _ => (0xff, 0, 0, 0),
         };
         [b0, b1, b2, b3]
     }
+}
+
+/// Encodes an angle in radians cleanly onto `[0, 360)` integer degrees stored
+/// little-endian across 2 opcode parameter bytes (`lo`, `hi`) so signed angles
+/// (`-π/2` -> `270°`) never collide with positive angles or truncate modulo 256.
+fn encode_rotation_degrees(theta: f64) -> (u8, u8) {
+    if !theta.is_finite() {
+        return (0, 0);
+    }
+    let deg = ((theta.rem_euclid(2.0 * std::f64::consts::PI) * 180.0 / std::f64::consts::PI).round()
+        as u32)
+        % 360;
+    ((deg & 0xFF) as u8, (deg >> 8) as u8)
 }
 
 /// An annotated quantum instruction within an execution stream or basic block.

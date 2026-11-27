@@ -16,7 +16,7 @@ impl Complex64 {
     pub const ONE: Self = Self { re: 1.0, im: 0.0 };
     pub const I: Self = Self { re: 0.0, im: 1.0 };
 
-    pub fn new(re: f64, im: f64) -> Self {
+    pub const fn new(re: f64, im: f64) -> Self {
         Self { re, im }
     }
 
@@ -39,7 +39,7 @@ impl Complex64 {
     }
 
     pub fn abs(self) -> f64 {
-        self.norm_sq().sqrt()
+        self.re.hypot(self.im)
     }
 }
 
@@ -73,6 +73,31 @@ impl std::ops::Mul for Complex64 {
     }
 }
 
+impl std::ops::Div for Complex64 {
+    type Output = Self;
+    fn div(self, rhs: Self) -> Self {
+        // Smith's numerically stable complex division avoiding intermediate squaring overflow.
+        if rhs.re.abs() >= rhs.im.abs() {
+            let r = rhs.im / rhs.re;
+            let denom = rhs.re + rhs.im * r;
+            Self {
+                re: (self.re + self.im * r) / denom,
+                im: (self.im - self.re * r) / denom,
+            }
+        } else {
+            let r = rhs.re / rhs.im;
+            let denom = rhs.im + rhs.re * r;
+            Self {
+                re: (self.re * r + self.im) / denom,
+                im: (self.im * r - self.re) / denom,
+            }
+        }
+    }
+}
+
+/// Maximum qubit count supported by dense $2^N \times 2^N$ unitary simulation.
+pub const MAX_VERIFIABLE_QUBITS: usize = 12;
+
 /// N-qubit Unitary Matrix representation in 2^N dimensional Hilbert space.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UnitaryMatrix {
@@ -84,7 +109,10 @@ pub struct UnitaryMatrix {
 impl UnitaryMatrix {
     /// Initialize 2^N x 2^N Identity Matrix
     pub fn identity(num_qubits: usize) -> Self {
-        let dim = 1 << num_qubits;
+        let dim = 1usize
+            .checked_shl(num_qubits as u32)
+            .filter(|_| num_qubits <= MAX_VERIFIABLE_QUBITS)
+            .expect("UnitaryMatrix::identity qubit count exceeds MAX_VERIFIABLE_QUBITS");
         let mut data = vec![Complex64::ZERO; dim * dim];
         for i in 0..dim {
             data[i * dim + i] = Complex64::ONE;
@@ -378,6 +406,36 @@ impl UnitaryMatrix {
         }
     }
 
+    /// Strict version of [`apply_gate`](Self::apply_gate) that rejects non-unitary or
+    /// custom/unsupported operations instead of silently treating them as Identity $I$.
+    pub fn try_apply_gate(&mut self, gate: &QuantumGate) -> Result<(), String> {
+        match gate {
+            QuantumGate::H(_)
+            | QuantumGate::X(_)
+            | QuantumGate::Y(_)
+            | QuantumGate::Z(_)
+            | QuantumGate::S(_)
+            | QuantumGate::Sdg(_)
+            | QuantumGate::T(_)
+            | QuantumGate::Tdg(_)
+            | QuantumGate::Rx(_, _)
+            | QuantumGate::Ry(_, _)
+            | QuantumGate::Rz(_, _)
+            | QuantumGate::CX(_, _)
+            | QuantumGate::CZ(_, _)
+            | QuantumGate::SWAP(_, _)
+            | QuantumGate::CCX(_, _, _) => {
+                self.apply_gate(gate);
+                Ok(())
+            }
+            QuantumGate::Barrier(_) => Ok(()),
+            other => Err(format!(
+                "Operation '{}' cannot be represented as a single unitary matrix without segment isolation",
+                other.mnemonic()
+            )),
+        }
+    }
+
     fn apply_single_qubit_2x2(&mut self, target_qubit: usize, m: [[Complex64; 2]; 2]) {
         let n = self.num_qubits;
         let dim = self.dim;
@@ -401,10 +459,234 @@ impl UnitaryMatrix {
     }
 }
 
-/// Maximum number of qubits for full 2^N x 2^N classical unitary matrix representation.
-pub const MAX_VERIFIABLE_QUBITS: usize = 14;
+/// Canonical scale-aware unitarity drift bound (`1e-9` for `n <= 12`, smooth $\sqrt{2}$ scaling above 12).
+pub fn unitarity_tolerance(num_qubits: usize) -> f64 {
+    1e-9 * 2.0_f64.powf(0.5 * num_qubits.saturating_sub(12) as f64)
+}
 
-/// Computes circuit unitary and mathematically verifies equivalence.
+/// Shared non-unitary segment mismatch result across dense and QMDD verifiers.
+pub(crate) fn segment_mismatch_result(
+    num_qubits: usize,
+    max_unitarity_error: f64,
+) -> VerificationResult {
+    let sqrt_d = 2.0_f64.powf(0.5 * num_qubits as f64);
+    let method = if num_qubits > dense_qubit_limit() {
+        "Canonical QMDD"
+    } else {
+        "Dense 2^N"
+    };
+    VerificationResult {
+        is_equivalent: false,
+        frobenius_error: 2.0 * sqrt_d,
+        fidelity: 0.0,
+        unitarity_error: max_unitarity_error,
+        num_qubits,
+        verification_method: Some(method.to_string()),
+        error_message: None,
+    }
+}
+
+#[inline]
+pub(crate) fn dense_qubit_limit() -> usize {
+    let safe_max_qubits = if cfg!(target_arch = "wasm32") { 10 } else { 12 };
+    MAX_VERIFIABLE_QUBITS.min(safe_max_qubits)
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum SegmentBoundary {
+    Mz(u32, u32),
+    Reset(u32),
+    ControlFlow(String),
+    Custom {
+        name: String,
+        qubits: Vec<u32>,
+        results: Vec<u32>,
+        params: Vec<f64>,
+    },
+}
+
+pub(crate) fn non_unitary_eq(a: &SegmentBoundary, b: &SegmentBoundary) -> bool {
+    match (a, b) {
+        (SegmentBoundary::Mz(qa, ra), SegmentBoundary::Mz(qb, rb)) => qa == qb && ra == rb,
+        (SegmentBoundary::Reset(qa), SegmentBoundary::Reset(qb)) => qa == qb,
+        (SegmentBoundary::ControlFlow(ra), SegmentBoundary::ControlFlow(rb)) => {
+            ra.trim() == rb.trim()
+        }
+        (
+            SegmentBoundary::Custom {
+                name: na,
+                qubits: qa,
+                results: ra,
+                params: pa,
+            },
+            SegmentBoundary::Custom {
+                name: nb,
+                qubits: qb,
+                results: rb,
+                params: pb,
+            },
+        ) => {
+            na.trim() == nb.trim()
+                && qa == qb
+                && ra == rb
+                && pa.len() == pb.len()
+                && pa
+                    .iter()
+                    .zip(pb.iter())
+                    .all(|(x, y)| x.is_finite() && y.is_finite() && (x - y).abs() < 1e-9)
+        }
+        _ => false,
+    }
+}
+
+pub(crate) fn split_unitary_segments(
+    instructions: &[QuantumInstruction],
+) -> (Vec<Vec<QuantumInstruction>>, Vec<SegmentBoundary>) {
+    let mut segments = Vec::new();
+    let mut non_unitaries = Vec::new();
+    let mut current = Vec::new();
+
+    for inst in instructions {
+        if inst.is_control_flow {
+            segments.push(std::mem::take(&mut current));
+            non_unitaries.push(SegmentBoundary::ControlFlow(inst.raw_ir.clone()));
+            continue;
+        }
+        match &inst.gate {
+            QuantumGate::Mz(q, r) => {
+                segments.push(std::mem::take(&mut current));
+                non_unitaries.push(SegmentBoundary::Mz(q.0, r.0));
+            }
+            QuantumGate::Reset(q) => {
+                segments.push(std::mem::take(&mut current));
+                non_unitaries.push(SegmentBoundary::Reset(q.0));
+            }
+            QuantumGate::Custom {
+                name,
+                qubits,
+                results,
+                params,
+            } => {
+                segments.push(std::mem::take(&mut current));
+                non_unitaries.push(SegmentBoundary::Custom {
+                    name: name.clone(),
+                    qubits: qubits.iter().map(|q| q.0).collect(),
+                    results: results.iter().map(|r| r.0).collect(),
+                    params: params.clone(),
+                });
+            }
+            QuantumGate::Barrier(_) => {
+                // Compiler scheduling barrier does not alter unitary semantics.
+            }
+            _ => {
+                current.push(inst.clone());
+            }
+        }
+    }
+    segments.push(current);
+    (segments, non_unitaries)
+}
+
+fn compute_unitarity_error(u: &UnitaryMatrix) -> f64 {
+    let dim = u.dim;
+    let mut sq_err = 0.0;
+    let mut row_dot = vec![Complex64::ZERO; dim];
+    for i in 0..dim {
+        row_dot.fill(Complex64::ZERO);
+        let row_i = &u.data[i * dim..(i + 1) * dim];
+        for k in 0..dim {
+            let uik = row_i[k];
+            if uik.norm_sq() < 1e-24 {
+                continue;
+            }
+            for j in 0..dim {
+                row_dot[j] = row_dot[j] + (uik * u.data[j * dim + k].conj());
+            }
+        }
+        for (j, &sum) in row_dot.iter().enumerate() {
+            let diff = if i == j { sum - Complex64::ONE } else { sum };
+            sq_err += diff.norm_sq();
+        }
+    }
+    sq_err.sqrt()
+}
+
+fn validate_gate_finite(gate: &QuantumGate) -> bool {
+    match gate {
+        QuantumGate::Rx(t, _) | QuantumGate::Ry(t, _) | QuantumGate::Rz(t, _) => t.is_finite(),
+        QuantumGate::Custom { params, .. } => params.iter().all(|p| p.is_finite()),
+        _ => true,
+    }
+}
+
+fn has_duplicate_qubits(gate: &QuantumGate) -> bool {
+    match gate {
+        QuantumGate::CX(a, b) | QuantumGate::CZ(a, b) | QuantumGate::SWAP(a, b) => a == b,
+        QuantumGate::CCX(a, b, c) => a == b || a == c || b == c,
+        _ => false,
+    }
+}
+
+pub(crate) fn validate_circuit_gates(
+    orig: &[QuantumInstruction],
+    clean: &[QuantumInstruction],
+    num_qubits: usize,
+) -> Option<VerificationResult> {
+    for inst in orig.iter().chain(clean.iter()) {
+        if inst.is_control_flow {
+            continue;
+        }
+        if !validate_gate_finite(&inst.gate) {
+            return Some(VerificationResult {
+                is_equivalent: false,
+                frobenius_error: f64::NAN,
+                fidelity: 0.0,
+                unitarity_error: f64::NAN,
+                num_qubits,
+                verification_method: None,
+                error_message: Some(format!(
+                    "Instruction '{}' contains non-finite (NaN/Inf) rotation parameter",
+                    inst.gate.mnemonic()
+                )),
+            });
+        }
+        if has_duplicate_qubits(&inst.gate) {
+            return Some(VerificationResult {
+                is_equivalent: false,
+                frobenius_error: f64::NAN,
+                fidelity: 0.0,
+                unitarity_error: f64::NAN,
+                num_qubits,
+                verification_method: None,
+                error_message: Some(format!(
+                    "Instruction '{}' requires distinct operand qubits",
+                    inst.gate.mnemonic()
+                )),
+            });
+        }
+        for q in inst.gate.active_qubits() {
+            if (q.0 as usize) >= num_qubits {
+                return Some(VerificationResult {
+                    is_equivalent: false,
+                    frobenius_error: f64::NAN,
+                    fidelity: 0.0,
+                    unitarity_error: f64::NAN,
+                    num_qubits,
+                    verification_method: None,
+                    error_message: Some(format!(
+                        "Instruction '{}' references out-of-bounds qubit q[{}] for {}-qubit system",
+                        inst.gate.mnemonic(),
+                        q.0,
+                        num_qubits
+                    )),
+                });
+            }
+        }
+    }
+    None
+}
+
+/// Formal quantum circuit equivalence verifier (dense $2^N \times 2^N$ and canonical QMDD).
 pub struct UnitaryVerifier;
 
 impl UnitaryVerifier {
@@ -422,59 +704,138 @@ impl UnitaryVerifier {
     }
 
     /// Mathematically proves unitary equivalence between original and clean circuits.
+    ///
+    /// Uses exact dense $2^N \times 2^N$ unitary simulation up to 12 qubits (10 in WASM),
+    /// and automatically transitions to canonical QMDD alternating verification (`G -> I <- H†`)
+    /// up to 64 qubits.
     pub fn verify_equivalence(
         orig: &[QuantumInstruction],
         clean: &[QuantumInstruction],
         num_qubits: usize,
     ) -> VerificationResult {
-        if num_qubits > MAX_VERIFIABLE_QUBITS {
-            return VerificationResult {
-                is_equivalent: false,
-                frobenius_error: f64::NAN,
-                fidelity: 0.0,
-                unitarity_error: f64::NAN,
-                num_qubits,
-                error_message: Some(format!(
-                    "Observable Hilbert space dimension 2^{} exceeds classical matrix memory limits (max supported: {} qubits / {}x{} states)",
-                    num_qubits,
-                    MAX_VERIFIABLE_QUBITS,
-                    1 << MAX_VERIFIABLE_QUBITS,
-                    1 << MAX_VERIFIABLE_QUBITS
-                )),
-            };
+        if let Some(err_res) = validate_circuit_gates(orig, clean, num_qubits) {
+            return err_res;
         }
 
-        let u_orig = Self::compute_circuit_unitary(orig, num_qubits);
-        let u_clean = Self::compute_circuit_unitary(clean, num_qubits);
+        if num_qubits > dense_qubit_limit() {
+            return crate::dd::verify_equivalence_dd(orig, clean, num_qubits);
+        }
 
-        let error = u_orig.frobenius_distance(&u_clean);
-        let fidelity = u_orig.process_fidelity(&u_clean);
-        let is_equivalent = error < 1e-6 || (1.0 - fidelity).abs() < 1e-6;
+        let (segs_orig, non_unit_orig) = split_unitary_segments(orig);
+        let (segs_clean, non_unit_clean) = split_unitary_segments(clean);
 
-        // Check reversibility: U * U† = I
-        let u_adj = u_clean.adjoint();
-        let u_id = u_clean.multiply(&u_adj);
-        let id = UnitaryMatrix::identity(num_qubits);
-        let unitarity_error = u_id.frobenius_distance(&id);
+        let non_unit_match = non_unit_orig.len() == non_unit_clean.len()
+            && non_unit_orig
+                .iter()
+                .zip(non_unit_clean.iter())
+                .all(|(a, b)| non_unitary_eq(a, b));
+
+        let dim = 1usize << num_qubits;
+        let mut max_unitarity_error: f64 = 0.0;
+
+        if !non_unit_match || segs_orig.len() != segs_clean.len() {
+            for seg_c in &segs_clean {
+                if seg_c.is_empty() {
+                    continue;
+                }
+                let u_clean = Self::compute_circuit_unitary(seg_c, num_qubits);
+                let seg_u_err = compute_unitarity_error(&u_clean);
+                if !seg_u_err.is_finite() {
+                    max_unitarity_error = f64::NAN;
+                    break;
+                }
+                max_unitarity_error = max_unitarity_error.max(seg_u_err);
+            }
+            return segment_mismatch_result(num_qubits, max_unitarity_error);
+        }
+
+        let mut max_error: f64 = 0.0;
+        let mut min_fidelity: f64 = 1.0;
+
+        for (seg_o, seg_c) in segs_orig.iter().zip(segs_clean.iter()) {
+            if seg_o.is_empty() && seg_c.is_empty() {
+                continue;
+            }
+            let u_orig = Self::compute_circuit_unitary(seg_o, num_qubits);
+            let u_clean = Self::compute_circuit_unitary(seg_c, num_qubits);
+
+            let seg_unitarity_err =
+                compute_unitarity_error(&u_orig).max(compute_unitarity_error(&u_clean));
+
+            // Global phase alignment: minimize ||U_orig - e^{i theta} U_clean||_F
+            let mut tr = Complex64::ZERO;
+            for (a, b) in u_orig.data.iter().zip(u_clean.data.iter()) {
+                tr = tr + (a.conj() * *b);
+            }
+            let tr_abs = tr.abs();
+            let phase = if tr_abs > 1e-12 {
+                Complex64::new(tr.re / tr_abs, -tr.im / tr_abs)
+            } else {
+                Complex64::ONE
+            };
+
+            let mut sq_err = 0.0;
+            for (a, b) in u_orig.data.iter().zip(u_clean.data.iter()) {
+                sq_err += (*a - (phase * *b)).norm_sq();
+            }
+            let error = sq_err.sqrt();
+            let fidelity = u_orig.process_fidelity(&u_clean);
+
+            if !error.is_finite() || !fidelity.is_finite() || !seg_unitarity_err.is_finite() {
+                return VerificationResult {
+                    is_equivalent: false,
+                    frobenius_error: f64::NAN,
+                    fidelity: 0.0,
+                    unitarity_error: f64::NAN,
+                    num_qubits,
+                    verification_method: Some("Dense 2^N".to_string()),
+                    error_message: Some(
+                        "Non-finite floating-point matrix metric encountered during verification"
+                            .to_string(),
+                    ),
+                };
+            }
+
+            max_unitarity_error = max_unitarity_error.max(seg_unitarity_err);
+            max_error = max_error.max(error);
+            min_fidelity = min_fidelity.min(fidelity);
+        }
+
+        let is_equivalent = max_error < 1e-6 * (dim as f64).sqrt()
+            && (1.0 - min_fidelity).abs() < 1e-6
+            && max_unitarity_error < unitarity_tolerance(num_qubits);
 
         VerificationResult {
             is_equivalent,
-            frobenius_error: error,
-            fidelity,
-            unitarity_error,
+            frobenius_error: max_error,
+            fidelity: min_fidelity,
+            unitarity_error: max_unitarity_error,
             num_qubits,
+            verification_method: Some("Dense 2^N".to_string()),
             error_message: None,
         }
     }
 }
 
+fn deserialize_nan_tolerant_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<f64>::deserialize(deserializer).map(|opt| opt.unwrap_or(f64::NAN))
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VerificationResult {
     pub is_equivalent: bool,
+    #[serde(deserialize_with = "deserialize_nan_tolerant_f64")]
     pub frobenius_error: f64,
+    #[serde(deserialize_with = "deserialize_nan_tolerant_f64")]
     pub fidelity: f64,
+    #[serde(deserialize_with = "deserialize_nan_tolerant_f64")]
     pub unitarity_error: f64,
     pub num_qubits: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verification_method: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error_message: Option<String>,
 }

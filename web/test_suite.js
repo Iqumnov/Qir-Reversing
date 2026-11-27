@@ -5,15 +5,17 @@
 
 const fs = require('fs');
 const path = require('path');
+const qirWasm = require('./js/qir_wasm.js');
 const {
     initWasm,
+    qirWasmDecodeBitcode,
     qirWasmDisassemble,
     qirWasmDeobfuscate,
     qirWasmRenderAscii,
     qirWasmRenderSvg,
     qirWasmVerify,
-} = require('./js/qir_wasm.js');
-const worker = require('./worker.js');
+} = qirWasm;
+const { createWorkerHandler } = require('./worker-core.js');
 
 function assert(condition, message) {
     if (!condition) {
@@ -28,7 +30,10 @@ async function runAllTests() {
     console.log('[TEST SUITE] QIR Reversing');
     console.log('════════════════════════════════════════════════════════════════\n');
 
-    await initWasm();
+    const wasmBytes = fs.readFileSync(path.join(__dirname, 'wasm/qir_core.wasm'));
+    const precompiledModule = await WebAssembly.compile(wasmBytes);
+    const worker = createWorkerHandler(qirWasm, precompiledModule);
+    await initWasm(precompiledModule);
 
     const demoDir = path.resolve(__dirname, '../demo_programs');
     const demoCleanPath = path.join(demoDir, 'lr2_quantum_demo.ll');
@@ -94,6 +99,221 @@ async function runAllTests() {
     const fullData = await fullRes.json();
     assert(fullData.verification.is_equivalent === true, 'Full Edge API proved unitary equivalence');
 
+    // Additional Edge API coverage: /api/analyze, /api/circuit, /api/verify, 405, 400, 404
+    const analyzeRes = await worker.fetch(new Request('https://edge.quantum.internal/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: cleanCode })
+    }));
+    assert(analyzeRes.status === 200, 'POST /api/analyze returned 200 OK');
+
+    const circuitRes = await worker.fetch(new Request('https://edge.quantum.internal/api/circuit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: cleanCode })
+    }));
+    assert(circuitRes.status === 200, 'POST /api/circuit returned 200 OK');
+
+    const verifyApiRes = await worker.fetch(new Request('https://edge.quantum.internal/api/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: obfCode })
+    }));
+    const verifyApiData = await verifyApiRes.json();
+    assert(verifyApiRes.status === 200 && verifyApiData.verification.is_equivalent === true, 'POST /api/verify proved equivalence');
+
+    const methodNotAllowed = await worker.fetch(new Request('https://edge.quantum.internal/api/analyze', { method: 'GET' }));
+    assert(methodNotAllowed.status === 405, 'GET /api/analyze rejects with 405 Method Not Allowed');
+
+    const emptyPayload = await worker.fetch(new Request('https://edge.quantum.internal/api/deobfuscate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: '   ' })
+    }));
+    assert(emptyPayload.status === 400, 'Blank code payload rejects with 400 Bad Request');
+
+    const notFoundApi = await worker.fetch(new Request('https://edge.quantum.internal/api/nonexistent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: cleanCode })
+    }));
+    assert(notFoundApi.status === 404, 'Unknown /api endpoint returns 404 Not Found');
+
+    // Verify static WebAssembly.Module import in Cloudflare edge workers (V8 isolate compliance)
+    const workerJsSrc = fs.readFileSync(path.join(__dirname, 'worker.js'), 'utf8');
+    const pagesWorkerSrc = fs.readFileSync(path.join(__dirname, '_worker.js'), 'utf8');
+    assert(workerJsSrc.includes("import wasmModule from './wasm/qir_core.wasm'") && pagesWorkerSrc.includes("import wasmModule from './wasm/qir_core.wasm'"), 'Cloudflare Workers/Pages entrypoints use static WebAssembly.Module imports');
+
+    const badPrefixReq = await worker.fetch(new Request('https://edge.quantum.internal/apiv2/health'));
+    assert(badPrefixReq.status === 200 && (await badPrefixReq.text()) === 'qir-reversing', 'Non-/api/ path /apiv2 does not trigger /api router');
+
+    const badHealthMethod = await worker.fetch(new Request('https://edge.quantum.internal/api/health', { method: 'DELETE' }));
+    assert(badHealthMethod.status === 405, 'DELETE /api/health rejects with 405 Method Not Allowed');
+
+    // Real binary LLVM Bitcode (.bc) decoding & end-to-end analysis inside WebAssembly (zero CLI / llvm-dis / pyqir)
+    const samplesDir = path.resolve(__dirname, '../samples');
+    const bellBcBytes = new Uint8Array(fs.readFileSync(path.join(samplesDir, 'bell_state.bc')));
+    const obfBcBytes = new Uint8Array(fs.readFileSync(path.join(samplesDir, 'obfuscated_circuit.bc')));
+
+    const decodedBell = qirWasmDecodeBitcode(bellBcBytes);
+    assert(decodedBell.opcodes_count === 5 && decodedBell.num_qubits === 2, `Pure-Rust WASM decoded binary bell_state.bc (5 opcodes, 2 qubits; got ${decodedBell.opcodes_count})`);
+    assert(decodedBell.ir.includes('@__quantum__qis__h__body'), 'Recovered textual LLVM IR from bell_state.bc');
+
+    const obfBcDeobf = qirWasmDeobfuscate(obfBcBytes);
+    assert(obfBcDeobf.original_count === 18 && obfBcDeobf.cleaned_count === 5, 'Pure-Rust WASM deobfuscated binary obfuscated_circuit.bc directly (18 -> 5)');
+
+    const obfBcVerify = qirWasmVerify(obfBcBytes);
+    assert(obfBcVerify.is_equivalent === true && Math.abs(1.0 - obfBcVerify.fidelity) < 1e-6, 'Pure-Rust WASM proved unitary equivalence on binary obfuscated_circuit.bc');
+
+    // Edge API binary .bc + base64 bitcode endpoints
+    const decodeBcApiRes = await worker.fetch(new Request('https://edge.quantum.internal/api/decode-bitcode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: bellBcBytes
+    }));
+    const decodeBcApiJson = await decodeBcApiRes.json();
+    assert(decodeBcApiRes.status === 200 && decodeBcApiJson.instructionsCount === 5, 'POST /api/decode-bitcode decoded raw binary .bc stream');
+
+    const analyzeB64Res = await worker.fetch(new Request('https://edge.quantum.internal/api/full', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bitcodeBase64: Buffer.from(obfBcBytes).toString('base64') })
+    }));
+    const analyzeB64Json = await analyzeB64Res.json();
+    assert(analyzeB64Res.status === 200 && analyzeB64Json.verification.is_equivalent === true, 'POST /api/full processed base64 .bc payload and verified equivalence');
+
+    // Scalable 32-qubit QMDD equivalence checking inside WebAssembly (beyond 10-qubit dense cap)
+    let largeIr = 'define void @ghz32() #0 {\nentry:\n  call void @__quantum__qis__h__body(ptr null)\n';
+    for (let q = 0; q < 31; q++) {
+        largeIr += `  call void @__quantum__qis__cnot__body(ptr inttoptr (i64 ${q} to ptr), ptr inttoptr (i64 ${q + 1} to ptr))\n`;
+        if (q % 6 === 0) {
+            largeIr += `  call void @__quantum__qis__x__body(ptr inttoptr (i64 ${q} to ptr))\n`;
+            largeIr += `  call void @__quantum__qis__x__body(ptr inttoptr (i64 ${q} to ptr))\n`;
+        }
+    }
+    largeIr += '  ret void\n}\nattributes #0 = { "entry_point" "required_num_qubits"="32" }\n';
+    const largeVerify = qirWasmVerify(largeIr);
+    assert(largeVerify.is_equivalent === true && largeVerify.num_qubits === 32 && largeVerify.fidelity > 0.999999, 'WASM QMDD verifier proved 32-qubit GHZ+obfuscation equivalence');
+
+    const faultyLargeIr = largeIr.replace('  ret void', '  call void @__quantum__qis__z__body(ptr inttoptr (i64 31 to ptr))\n  ret void');
+    const faultyLargeVerify = qirWasmVerify(largeIr, faultyLargeIr, 32);
+    assert(faultyLargeVerify.is_equivalent === false, 'WASM QMDD verifier detected single-qubit Z fault on 32-qubit circuit');
+
+    // Verify wasm memory deallocation across repeated invocations does not leak/trap
+    for (let k = 0; k < 50; k++) {
+        const res = qirWasmDeobfuscate(obfCode);
+        if (res.cleaned_count !== 5) assert(false, 'Repeated WASM deobfuscation remained deterministic');
+    }
+    assert(true, 'Repeated WASM allocator/deallocator stress cycle (50x) completed cleanly');
+
+    // Empty / non-QIR rejection & two-circuit /api/verify & URL-safe base64 & default content-type binary .bc
+    let emptyCaught = false;
+    try { qirWasmDisassemble('   '); } catch { emptyCaught = true; }
+    assert(emptyCaught, 'WASM disassembler rejects whitespace-only IR');
+
+    let garbageCaught = false;
+    try { qirWasmVerify('hello world'); } catch { garbageCaught = true; }
+    assert(garbageCaught, 'WASM verifier rejects non-QIR arbitrary text instead of proving I == I');
+
+    const curlStyleBcRes = await worker.fetch(new Request('https://edge.quantum.internal/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: bellBcBytes
+    }));
+    const curlStyleBcJson = await curlStyleBcRes.json();
+    assert(curlStyleBcRes.status === 200 && curlStyleBcJson.instructionsCount === 5, 'Worker preserves raw binary .bc bytes even with curl default Content-Type');
+
+    const urlSafeB64 = Buffer.from(obfBcBytes).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const deobfUrlB64Res = await worker.fetch(new Request('https://edge.quantum.internal/api/deobfuscate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bitcodeBase64: urlSafeB64 })
+    }));
+    const deobfUrlB64Json = await deobfUrlB64Res.json();
+    assert(
+        deobfUrlB64Res.status === 200 &&
+        deobfUrlB64Json.cleanCount === 5 &&
+        deobfUrlB64Json.liveQubits === 2,
+        'Worker handles unpadded URL-safe base64 and returns liveQubits'
+    );
+    const deobfDirect = qirWasmDeobfuscate(obfCode);
+    assert(
+        typeof deobfDirect.clean_disassembly === 'string' && deobfDirect.clean_disassembly.includes('OFFSET'),
+        'WASM deobfuscator includes clean_disassembly for Deobfuscation viewport'
+    );
+
+    const pagesBlockedRes = await worker.fetch(
+        new Request('https://edge.quantum.internal/server.js'),
+        { ASSETS: { fetch: () => new Response('leaked', { status: 200 }) } }
+    );
+    assert(pagesBlockedRes.status === 404, 'Worker ASSETS routing blocks internal files (server.js -> 404)');
+
+    const verifyPairRes = await worker.fetch(new Request('https://edge.quantum.internal/api/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: obfCode, cleanCode: cleanCode, numQubits: 2 })
+    }));
+    const verifyPairJson = await verifyPairRes.json();
+    assert(verifyPairRes.status === 200 && verifyPairJson.verification.is_equivalent === true, 'POST /api/verify supports explicit cleanCode comparison');
+
+    // Live Node.js HTTP server.js binary .bc, CSP, blocked file, & HEAD parity test
+    const { server } = require('./server.js');
+    try {
+        await new Promise((resolve, reject) => {
+            server.once('error', reject);
+            server.listen(0, '127.0.0.1', resolve);
+        });
+        const addr = server.address();
+        const baseUrl = `http://127.0.0.1:${addr.port}`;
+
+        const httpHome = await fetch(`${baseUrl}/`);
+        const csp = httpHome.headers.get('content-security-policy') || '';
+        assert(httpHome.status === 200 && csp.includes("script-src 'self' 'wasm-unsafe-eval'"), 'Node server.js serves / with CSP header');
+
+        const headRes = await fetch(`${baseUrl}/index.html`, { method: 'HEAD' });
+        assert(headRes.status === 200 && (await headRes.text()) === '', 'Node server HEAD /index.html returns 200 without body');
+
+        const httpBlocked = await fetch(`${baseUrl}/server.js`);
+        assert(httpBlocked.status === 404, 'Node server.js blocks internal source files (404)');
+
+        const octFullRes = await fetch(`${baseUrl}/api/full`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/octet-stream' },
+            body: obfBcBytes,
+        });
+        const octFullJson = await octFullRes.json();
+        const apiCsp = octFullRes.headers.get('content-security-policy') || '';
+        const apiXfo = octFullRes.headers.get('x-frame-options') || '';
+        assert(
+            octFullRes.status === 200 &&
+            octFullJson.deobfuscation.originalCount === 18 &&
+            octFullJson.deobfuscation.cleanCount === 5 &&
+            octFullJson.verification.is_equivalent === true &&
+            apiCsp.includes("frame-ancestors 'none'") &&
+            apiXfo === 'DENY',
+            'Node server.js POST /api/full preserved raw binary .bc bytes and CSP/XFO headers'
+        );
+
+        // Simulate `curl --data-binary @file.bc` default Content-Type (application/x-www-form-urlencoded)
+        const curlFullRes = await fetch(`${baseUrl}/api/full`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: obfBcBytes,
+        });
+        const curlFullJson = await curlFullRes.json();
+        assert(
+            curlFullRes.status === 200 &&
+            curlFullJson.verification.is_equivalent === true,
+            'Node server.js & worker detected BC magic without application/octet-stream header'
+        );
+    } finally {
+        await new Promise(resolve => server.close(() => resolve()));
+    }
+
+    let badBcCaught = false;
+    try { qirWasmDecodeBitcode(new Uint8Array([1, 2, 3, 4])); } catch { badBcCaught = true; }
+    assert(badBcCaught, 'Pure-Rust WASM rejects invalid binary bitcode header cleanly');
+
     // 6. Reactive UI Logic Verification
     console.log('\n6. REACTIVE ANALYZE & UI STATE VALIDATION');
     function evaluateAnalyzeState(text) {
@@ -113,7 +333,7 @@ async function runAllTests() {
         linux: 'curl -sSL https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.sh | bash',
         windows: 'irm https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.ps1 | iex',
         macos: 'curl -sSL https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.sh | bash',
-        cargo: 'cargo install --git https://github.com/Iqumnov/Qir-Reversing --bin qir-rev --bin qir-rev-mcp'
+        cargo: 'cargo install --git https://github.com/Iqumnov/Qir-Reversing qir-cli qir-mcp'
     };
 
     function detectPlatformMock(ua, plat) {

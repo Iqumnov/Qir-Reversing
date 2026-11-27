@@ -1,12 +1,17 @@
-# Virtual environments
+# Virtual environments & caches
 venv/
+.env
 .env/
+.dev.vars
 env/
 
 # Python bytecode and caches
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Large prebuilt binaries and extracted distributions (re-downloadable via setup)
 bin/Cutter.AppImage
@@ -17,12 +22,19 @@ bin/include/
 bin/lib/
 bin/share/
 
-# Compiled native objects
+# Compiled native objects & release archives
 *.so
+*.dll
+*.dylib
+*.tar.gz
+*.zip
+SHA256SUMS.txt
 
 # Python distribution & build artifacts
 build/
 dist/
+dist-arm64/
+dist-x86_64/
 *.egg-info/
 
 # Node / Cloudflare
@@ -42,6 +54,7 @@ node_modules/
 
 target/
 **/*.rs.bk
+**/.lake/
 
 # Local demonstration workspace (retained locally on device for evaluation)
 

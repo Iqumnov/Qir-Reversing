@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qir-reversing"
-version = "0.1.0"
+version = "1.0.0"
 description = "Quantum Intermediate Representation Reverse Engineering, Deobfuscation, and Formal Verification"
 readme = "README.md"
 authors = [{ name = "Matvei Igumnov", email = "matvei@iqumnov.com" }]
@@ -18,11 +18,17 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering",
     "Topic :: Security",
 ]
 requires-python = ">=3.10"
 dependencies = []
+
+[project.optional-dependencies]
+rizin = ["rzpipe>=0.7.0"]
+bitcode = ["pyqir>=0.10.0"]
 
 [project.urls]
 Homepage = "https://github.com/Iqumnov/Qir-Reversing"

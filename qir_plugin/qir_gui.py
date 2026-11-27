@@ -17,13 +17,16 @@ import webbrowser
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
-# Adjust path for imports
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(BASE_DIR, "qir_plugin"))
-
-from qir_parser import QIRParser
-from qir_disasm import QIRDisassembler
-from qir_deobfuscator import QIRDeobfuscator
+if __package__:
+    from .qir_parser import QIRParser
+    from .qir_disasm import QIRDisassembler
+    from .qir_deobfuscator import QIRDeobfuscator
+else:
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.join(BASE_DIR, "qir_plugin"))
+    from qir_parser import QIRParser
+    from qir_disasm import QIRDisassembler
+    from qir_deobfuscator import QIRDeobfuscator
 
 
 class QIRApplication(tk.Tk):
@@ -39,7 +42,7 @@ class QIRApplication(tk.Tk):
 
         self.current_filepath = ""
         self.raw_instructions = []
-        self.cleaned_instructions = []
+        self.cleaned_instructions = None
 
         self._apply_dark_theme()
         self._build_layout()
@@ -234,11 +237,35 @@ class QIRApplication(tk.Tk):
         txt.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         return frame, txt
 
-    def load_file(self, filepath):
+    def load_file(self, filepath, display_name=None):
         if not os.path.exists(filepath):
             return
-        self.current_filepath = filepath
-        self.raw_instructions = self.parser.parse_file(filepath)
+        self.current_filepath = display_name or filepath
+        try:
+            self.raw_instructions = self.parser.parse_file(filepath)
+        except Exception as err:
+            messagebox.showerror("QIR Parse Error", f"Failed to parse {os.path.basename(self.current_filepath)}:\n{err}")
+            return
+        if not self.raw_instructions:
+            # Verify raw text or decoded bitcode IR actually looks like LLVM IR / QIR before presenting empty 0-op analysis
+            looks_like_qir = False
+            try:
+                txt_probe = self.parser.last_decoded_ir or ""
+                if not txt_probe and (not display_name or not display_name.lower().endswith(".bc")):
+                    with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                        txt_probe = f.read()
+                looks_like_qir = any(
+                    kw in txt_probe
+                    for kw in ("define ", "declare ", "@__quantum__", "attributes ")
+                )
+            except Exception:
+                pass
+            if not looks_like_qir:
+                messagebox.showwarning(
+                    "No QIR Found",
+                    f"No valid LLVM QIR instructions or declarations found in '{os.path.basename(self.current_filepath)}'."
+                )
+                return
         self.cleaned_instructions = self.deobf.deobfuscate(self.raw_instructions)
 
         # Show status bar if hidden
@@ -253,10 +280,12 @@ class QIRApplication(tk.Tk):
         for btn in self.tab_buttons:
             btn.config(cursor="hand2", fg=self.c_fg_dim)
 
-        # Update telemetry
-        fname = os.path.basename(filepath)
+        # Update telemetry (count quantum operations excluding control-flow labels)
+        n_raw = sum(1 for i in self.raw_instructions if not i.is_control_flow)
+        n_clean = sum(1 for i in self.cleaned_instructions if not i.is_control_flow)
+        fname = display_name or os.path.basename(filepath)
         self.lbl_telemetry.config(
-            text=f"Status: Analyzed | Target: {fname} | Qubits: {self.parser.num_qubits} | Results: {self.parser.num_results} | Opcodes: {len(self.raw_instructions)} -> {len(self.cleaned_instructions)}"
+            text=f"Status: Analyzed | Target: {fname} | Qubits: {self.parser.num_qubits} | Results: {self.parser.num_results} | Opcodes: {n_raw} -> {n_clean}"
         )
         obf_text = f"Reduction: {self.deobf.obfuscation_ratio:.1f}%" if self.deobf.obfuscation_ratio > 0 else "Reduction: 0.0%"
         self.lbl_obf_index.config(
@@ -271,29 +300,26 @@ class QIRApplication(tk.Tk):
         try:
             with open(filepath, "rb") as bf:
                 hdr = bf.read(4)
-                if hdr == b"\x42\x43\xc0\xde" or hdr.startswith(b"BC") or filepath.endswith(".bc"):
+                if hdr in (b"\x42\x43\xc0\xde", b"\xde\xc0\x17\x0b") or filepath.lower().endswith(".bc"):
                     is_bitcode = True
         except Exception:
             pass
 
         if is_bitcode:
-            ll_cand = os.path.splitext(filepath)[0] + ".ll"
-            if os.path.exists(ll_cand):
-                try:
-                    with open(ll_cand, "r", encoding="utf-8", errors="ignore") as f:
-                        source_text = f.read()
-                except Exception:
-                    pass
-            if not source_text:
-                # Reconstruct clean textual LLVM IR from parsed instructions
+            if self.parser.last_decoded_ir and self.parser.last_decoded_ir.strip():
+                source_text = self.parser.last_decoded_ir
+            else:
+                # Fallback textual reconstruction from decoded instructions
                 lines = [
                     f"; ModuleID = '{fname}'",
-                    f"; Decompiled from LLVM Bitcode ({len(self.raw_instructions)} operations, {self.parser.num_qubits} qubits)",
+                    f"; Decompiled from LLVM Bitcode ({n_raw} operations, {self.parser.num_qubits} qubits)",
                     "",
-                    "define void @main() #0 {",
+                    f"define void @{self.parser.entry_point or 'main'}() #0 {{",
                     "entry:"
                 ]
                 for inst in self.raw_instructions:
+                    if inst.is_control_flow and inst.label == "entry":
+                        continue
                     if inst.raw_call:
                         lines.append(f"  {inst.raw_call}")
                     else:
@@ -312,26 +338,26 @@ class QIRApplication(tk.Tk):
             except Exception:
                 pass
 
-        if source_text:
-            self._set_text(self.txt_source, source_text)
+        self._set_text(self.txt_source, source_text)
         self._update_analyze_state()
 
         # 1. Disassembly
-        dis_output = self.disasm.format_disassembly(self.raw_instructions, filepath)
+        dis_output = self.disasm.format_disassembly(self.raw_instructions, fname)
         self._set_text(self.txt_disasm, dis_output)
 
         # 2. Circuit Diagram
-        circ_output = self.disasm.render_circuit_diagram(self.cleaned_instructions or self.raw_instructions)
+        display_insts = self.cleaned_instructions if self.cleaned_instructions is not None else self.raw_instructions
+        circ_output = self.disasm.render_circuit_diagram(display_insts)
         self._set_text(self.txt_circuit, circ_output)
 
         # 3. Deobfuscation Report
         rep = self.deobf.format_report()
-        clean_dis = self.disasm.format_disassembly(self.cleaned_instructions, filepath + " [DEOBFUSCATED]")
-        full_rep = f"{rep}\n\n[+] CANONICAL RECONSTRUCTED INSTRUCTIONS ({len(self.cleaned_instructions)} of {len(self.raw_instructions)}):\n{clean_dis}"
+        clean_dis = self.disasm.format_disassembly(self.cleaned_instructions, fname + " [DEOBFUSCATED]")
+        full_rep = f"{rep}\n\n[+] CANONICAL RECONSTRUCTED INSTRUCTIONS ({n_clean} of {n_raw}):\n{clean_dis}"
         self._set_text(self.txt_report, full_rep)
 
         # 4. OpenQASM
-        clean_qasm = self.disasm.export_openqasm(self.cleaned_instructions or self.raw_instructions)
+        clean_qasm = self.disasm.export_openqasm(display_insts)
         self._set_text(self.txt_qasm, clean_qasm)
 
         self.select_tab(1)
@@ -454,7 +480,8 @@ class QIRApplication(tk.Tk):
             "1. Load:    Click 'Load QIR' to open a bitcode (.bc) or IR (.ll) file,\n"
             "            or paste assembly directly into the Source editor.\n"
             "2. Analyze: Click 'Analyze' to decompile instructions, detect\n"
-            "            obfuscation patterns, and verify unitary matrix equivalence.\n"
+            "            obfuscation patterns, and reconstruct canonical OpenQASM.\n"
+            "            (For Dense 2^N / QMDD proofs up to 64q, use 'qir-rev verify' or Web UI.)\n"
             "3. Inspect: Examine findings across the Disassembly, Circuit,\n"
             "            Deobfuscation, and OpenQASM viewports.\n\n"
             "INTERFACE MODES\n"
@@ -466,7 +493,7 @@ class QIRApplication(tk.Tk):
             "• OpenQASM:      Decompiled OpenQASM 3.0 code ready for quantum backends.\n\n"
             "LOCAL INSTALLATION & TOOLCHAIN\n"
             "------------------------------------------------------------------------\n"
-            "cargo install --git https://github.com/Iqumnov/Qir-Reversing --bin qir-rev --bin qir-rev-mcp\n\n"
+            "cargo install --git https://github.com/Iqumnov/Qir-Reversing qir-cli qir-mcp\n\n"
             "• qir-rev:     High-throughput local CLI reversing & batch pipelines (alias: qrev).\n"
             "• qir-rev-mcp: Model Context Protocol server for AI assistant integration.\n"
             "• Cutter Dock: Native C-ABI plugin (librz_qir.so) & GUI dock for Rizin.\n"
@@ -504,40 +531,23 @@ class QIRApplication(tk.Tk):
             messagebox.showinfo("Analyze", "Source buffer contains only comments. Please provide valid LLVM QIR instructions.")
             return
 
-        tmp_path = "/tmp/custom_source.ll"
-        with open(tmp_path, "w") as f:
-            f.write(content)
-        self.load_file(tmp_path)
-
-    def on_run_deobfuscator(self):
-        if not self.raw_instructions:
-            messagebox.showinfo("Deobfuscator", "Please open a QIR bytecode file first.")
-            return
-
-        self.cleaned_instructions = self.deobf.deobfuscate(self.raw_instructions)
-
-        # Show results
-        rep = self.deobf.format_report()
-        clean_dis = self.disasm.format_disassembly(self.cleaned_instructions, self.current_filepath + " [DEOBFUSCATED]")
-        clean_circ = self.disasm.render_circuit_diagram(self.cleaned_instructions)
-
-        full_rep = f"{rep}\n\n[+] CANONICAL DEOBFUSCATED INSTRUCTIONS ({len(self.cleaned_instructions)} gates remaining of {len(self.raw_instructions)}):\n{clean_dis}\n\n{clean_circ}"
-        self._set_text(self.txt_report, full_rep)
-
-        # Update QASM tab with clean code
-        clean_qasm = self.disasm.export_openqasm(self.cleaned_instructions)
-        self._set_text(self.txt_qasm, clean_qasm)
-
-        # Switch to Report tab
-        self.select_tab(3)
-        messagebox.showinfo("Deobfuscation Complete",
-                            f"Identified {len(self.deobf.findings)} obfuscation artifacts.\n"
-                            f"Reduced circuit from {len(self.raw_instructions)} to {len(self.cleaned_instructions)} canonical operations.\n"
-                            f"Obfuscation ratio: {self.deobf.obfuscation_ratio:.1f}%")
+        import tempfile
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".ll", encoding="utf-8", delete=False) as tf:
+                tf.write(content)
+                tmp_path = tf.name
+            self.load_file(tmp_path, display_name="source_buffer.ll")
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
 
     def on_export_qasm(self):
-        insts = self.cleaned_instructions or self.raw_instructions
-        if not insts:
+        insts = self.cleaned_instructions if self.cleaned_instructions is not None else self.raw_instructions
+        if insts is None or (not insts and not self.raw_instructions):
             messagebox.showinfo("Export", "No quantum instructions loaded.")
             return
 
@@ -547,12 +557,18 @@ class QIRApplication(tk.Tk):
             filetypes=[("OpenQASM (*.qasm)", "*.qasm"), ("All Files", "*.*")]
         )
         if f:
-            self.disasm.export_openqasm(insts, out_path=f)
-            messagebox.showinfo("Export Success", f"Successfully exported OpenQASM 3.0 to:\n{f}")
+            try:
+                self.disasm.export_openqasm(insts, out_path=f)
+                messagebox.showinfo("Export Success", f"Successfully exported OpenQASM 3.0 to:\n{f}")
+            except OSError as err:
+                messagebox.showerror("Export Error", f"Failed to write OpenQASM file:\n{err}")
 
 
 def main():
     app = QIRApplication()
+    if len(sys.argv) > 1 and os.path.isfile(sys.argv[1]):
+        initial_path = sys.argv[1]
+        app.after(50, lambda p=initial_path: app.load_file(p))
     app.mainloop()
 
 

@@ -9,7 +9,7 @@
 
 [CmdletBinding()]
 param(
-    [string]$Version = "v0.1.0",
+    [string]$Version = "latest",
     [string]$InstallDir = "$HOME\.qir-rev\bin"
 )
 
@@ -29,7 +29,11 @@ if (-not (Test-Path -Path $InstallDir)) {
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 }
 
-$ZipUrl = "https://github.com/Iqumnov/Qir-Reversing/releases/download/$Version/qir-rev-windows-x86_64.zip"
+if ($Version -eq "latest") {
+    $ZipUrl = "https://github.com/Iqumnov/Qir-Reversing/releases/latest/download/qir-rev-windows-x86_64.zip"
+} else {
+    $ZipUrl = "https://github.com/Iqumnov/Qir-Reversing/releases/download/$Version/qir-rev-windows-x86_64.zip"
+}
 
 $TempZip = Join-Path $env:TEMP "qir-rev-windows-x86_64.zip"
 $TempExtract = Join-Path $env:TEMP "qir-rev-extract"
@@ -54,14 +58,20 @@ try {
 if (-not $DownloadSuccess) {
     Write-Host "[*] Attempting fallback to cargo install..." -ForegroundColor Cyan
     if (Get-Command cargo -ErrorAction SilentlyContinue) {
-        cargo install --git https://github.com/Iqumnov/Qir-Reversing --bin qir-rev --bin qir-rev-mcp --force
-        $InstallDir = "$HOME\.cargo\bin"
+        cargo install --git https://github.com/Iqumnov/Qir-Reversing qir-cli --force
+        cargo install --git https://github.com/Iqumnov/Qir-Reversing qir-mcp --force
+        $CargoBin = if ($env:CARGO_HOME) { Join-Path $env:CARGO_HOME "bin" } else { "$HOME\.cargo\bin" }
+        $InstallDir = $CargoBin
+        $QrevCmd = Join-Path $InstallDir "qrev.cmd"
+        Set-Content -Path $QrevCmd -Value "@echo off`r`n`"%~dp0\qir-rev.exe`" %*"
+        $QirCmd = Join-Path $InstallDir "qir.cmd"
+        Set-Content -Path $QirCmd -Value "@echo off`r`n`"%~dp0\qir-rev.exe`" %*"
     } else {
         Write-Error "Cargo is not installed and GitHub Release assets could not be downloaded."
     }
 } else {
     # 1. Install CLI & MCP Binaries
-    $CliExe = Get-ChildItem -Path $TempExtract -Recurse -Filter "*qir*.exe" | Where-Object { $_.Name -match "qir(-rev)?\.exe$" } | Select-Object -First 1
+    $CliExe = Get-ChildItem -Path $TempExtract -Recurse -Filter "*qir*.exe" | Where-Object { $_.Name -match "^qir(-rev)?\.exe$" } | Select-Object -First 1
     $McpExe = Get-ChildItem -Path $TempExtract -Recurse -Filter "*mcp*.exe" | Select-Object -First 1
 
     if ($CliExe) {
@@ -112,8 +122,12 @@ if (-not $DownloadSuccess) {
 
 # Update User PATH if needed
 $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
-if ($UserPath -notlike "*$InstallDir*") {
-    [Environment]::SetEnvironmentVariable("Path", "$UserPath;$InstallDir", "User")
+$PathEntries = if ($UserPath) { $UserPath -split ';' | Where-Object { $_ -ne '' } } else { @() }
+$NormalizedInstall = $InstallDir.TrimEnd('\')
+$HasPath = $PathEntries | Where-Object { $_.TrimEnd('\').Equals($NormalizedInstall, [System.StringComparison]::OrdinalIgnoreCase) }
+if (-not $HasPath) {
+    $NewPath = ($PathEntries + $InstallDir) -join ';'
+    [Environment]::SetEnvironmentVariable("Path", $NewPath, "User")
     $env:Path = "$env:Path;$InstallDir"
     Write-Host "[✓] Added $InstallDir to user PATH." -ForegroundColor Green
 }

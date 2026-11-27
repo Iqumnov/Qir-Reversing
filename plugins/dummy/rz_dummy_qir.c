@@ -15,6 +15,7 @@
 #include <librz/rz_asm.h>
 
 static int dummy_disassemble(const RzAsm *a, RzAsmOp *op, const ut8 *buf, int len) {
+    (void)a;
     if (!op || !buf || len < 1) {
         return 0;
     }
@@ -27,7 +28,7 @@ static int dummy_disassemble(const RzAsm *a, RzAsmOp *op, const ut8 *buf, int le
             break;
         case 0x02:
             if (len >= 2) {
-                rz_strbuf_setf(&op->buf_asm, "qir.cx q[%d], q[%d]", buf[0] & 1, buf[1] & 1);
+                rz_strbuf_setf(&op->buf_asm, "qir.cx q[%d], q[%d]", (buf[1] >> 4) & 1, buf[1] & 1);
                 op->size = 2;
             } else {
                 rz_strbuf_setf(&op->buf_asm, "qir.cx q[0], q[1]");

@@ -1,9 +1,6 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -fPIC -O2 \
-         -I../bin/include/librz \
-         -I../bin/include/librz/sdb \
-         -I../bin/include/librz/sflib \
-         -I../bin/include
+RZ_CFLAGS := $(if $(wildcard ../../bin/include/librz/rz_asm.h),-I../../bin/include/librz -I../../bin/include/librz/sdb -I../../bin/include/librz/sflib -I../../bin/include,$(shell pkg-config --cflags rz_asm rz_util rz_lib 2>/dev/null))
+CFLAGS = -Wall -Wextra -fPIC -O2 $(RZ_CFLAGS)
 LDFLAGS = -shared
 
 TARGET = librz_dummy_qir.so

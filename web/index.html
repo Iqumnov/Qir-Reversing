@@ -6,38 +6,62 @@
     <title>QIR Reversing — Quantum Intermediate Representation Deobfuscator & Verifier</title>
     <meta name="description" content="High-performance static analysis, disassembly, topological circuit reconstruction, algebraic deobfuscation, and Hilbert unitary verification for LLVM QIR bytecode.">
     <meta name="author" content="Matvei Igumnov">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#000000">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="canonical" href="https://qir-reversing.iqumnov.com/">
     <meta property="og:title" content="QIR Reversing — Quantum IR Reverse Engineering & Formal Verification">
-    <meta property="og:description" content="Static analysis, commutation algebra deobfuscation, and 2^N Hilbert unitary verification for LLVM QIR bytecode.">
+    <meta property="og:description" content="Pure-Rust LLVM QIR bitcode decoder, commutation algebra deobfuscator, and up-to-64-qubit dense + QMDD unitary equivalence verifier.">
     <meta property="og:url" content="https://qir-reversing.iqumnov.com/">
+    <meta property="og:image" content="https://qir-reversing.iqumnov.com/og-banner.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
     <meta property="og:type" content="website">
-    <meta name="twitter:card" content="summary">
+    <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="QIR Reversing — Quantum IR Reverse Engineering & Formal Verification">
-    <meta name="twitter:description" content="Static analysis, commutation algebra deobfuscation, and 2^N Hilbert unitary verification for LLVM QIR bytecode.">
+    <meta name="twitter:description" content="Pure-Rust LLVM QIR bitcode decoder, commutation algebra deobfuscator, and up-to-64-qubit dense + QMDD unitary equivalence verifier.">
+    <meta name="twitter:image" content="https://qir-reversing.iqumnov.com/og-banner.png">
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "QIR Reversing",
+        "url": "https://qir-reversing.iqumnov.com/",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Web, Linux, macOS, Windows",
+        "description": "LLVM Quantum Intermediate Representation (.bc bitcode & .ll IR) disassembler, algebraic commutation deobfuscator, and up-to-64-qubit dense + QMDD unitary equivalence verifier.",
+        "author": {
+          "@type": "Person",
+          "name": "Matvei Igumnov"
+        }
+      }
+    </script>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <h1 class="sr-only">QIR Reversing — LLVM Quantum Intermediate Representation Disassembler, Deobfuscator, and Formal Unitary Verifier</h1>
     <!-- Top Unified Navigation & Action Header -->
     <header class="unified-header">
         <div class="header-controls">
-            <button class="btn icon-btn" id="btnInfo" title="About &amp; Quick-Start">i</button>
+            <button class="btn icon-btn" id="btnInfo" title="About &amp; Quick-Start" aria-label="About and Quick-Start">i</button>
             <button class="btn action-btn" id="btnLoadQir">Load QIR</button>
             <input type="file" id="fileInput" accept=".bc,.ll,.ir,.txt" style="display: none;">
             <button class="btn action-btn disabled" id="btnAnalyze" disabled>Analyze</button>
             <button class="btn action-btn disabled" id="btnExportQasm" disabled>Export OpenQASM</button>
         </div>
 
-        <span class="header-divider">|</span>
+        <span class="header-divider" aria-hidden="true">|</span>
 
-        <nav class="tactical-tabs" role="tablist">
-            <button class="tab-btn active" data-tab="tabSource" role="tab">Source</button>
-            <button class="tab-btn disabled" data-tab="tabDisasm" role="tab" id="tabBtnDisasm">Disassembly</button>
-            <button class="tab-btn disabled" data-tab="tabCircuit" role="tab" id="tabBtnCircuit">Circuit</button>
-            <button class="tab-btn disabled" data-tab="tabDeobf" role="tab" id="tabBtnDeobf">
+        <nav class="tactical-tabs" role="tablist" aria-label="Analysis Workspaces">
+            <button class="tab-btn active" data-tab="tabSource" role="tab" aria-selected="true" aria-controls="tabSource">Source</button>
+            <button class="tab-btn disabled" data-tab="tabDisasm" role="tab" aria-selected="false" aria-controls="tabDisasm" id="tabBtnDisasm">Disassembly</button>
+            <button class="tab-btn disabled" data-tab="tabCircuit" role="tab" aria-selected="false" aria-controls="tabCircuit" id="tabBtnCircuit">Circuit</button>
+            <button class="tab-btn disabled" data-tab="tabDeobf" role="tab" aria-selected="false" aria-controls="tabDeobf" id="tabBtnDeobf">
                 Deobfuscation
                 <span class="tab-badge" id="anomalyCountBadge">0</span>
             </button>
-            <button class="tab-btn disabled" data-tab="tabQasm" role="tab" id="tabBtnQasm">OpenQASM</button>
+            <button class="tab-btn disabled" data-tab="tabQasm" role="tab" aria-selected="false" aria-controls="tabQasm" id="tabBtnQasm">OpenQASM</button>
         </nav>
     </header>
 
@@ -77,7 +101,7 @@
             <div class="code-view-wrapper">
                 <button class="btn copy-floating-btn" id="btnCopyDisasm" title="Copy Disassembly">Copy</button>
                 <div class="code-container">
-                    <pre><code id="disasmOutput">; No QIR bytecode loaded. Paste source or select a sample to analyze.</code></pre>
+                    <pre><code id="disasmOutput">; No QIR bytecode loaded. Paste source or click Load QIR to analyze.</code></pre>
                 </div>
             </div>
         </div>
@@ -95,9 +119,9 @@
                 <div class="empty-state">; No deobfuscation audit performed yet.</div>
             </div>
             <div class="code-view-wrapper flex-fill">
-                <button class="btn copy-floating-btn" id="btnCopyCleaned" title="Copy Cleaned QIR">Copy</button>
+                <button class="btn copy-floating-btn" id="btnCopyCleaned" title="Copy Cleaned Disassembly">Copy</button>
                 <div class="code-container">
-                    <pre><code id="deobfCleanedOutput">; Reconstructed canonical circuit will appear here...</code></pre>
+                    <pre><code id="deobfCleanedOutput">; Reconstructed canonical circuit disassembly will appear here...</code></pre>
                 </div>
             </div>
         </div>
@@ -114,11 +138,11 @@
     </main>
 
     <!-- Info & Documentation Modal -->
-    <div class="modal-overlay" id="infoModal">
+    <div class="modal-overlay" id="infoModal" role="dialog" aria-modal="true" aria-labelledby="infoModalTitle">
         <div class="modal-card">
             <div class="modal-header">
                 <div class="modal-title-group">
-                    <span class="modal-title">QIR Reversing</span>
+                    <span class="modal-title" id="infoModalTitle">QIR Reversing</span>
                     <span class="modal-subtitle">Quantum Reverse Engineering Platform</span>
                 </div>
             </div>
@@ -127,15 +151,15 @@
                 <div class="modal-section">
                     <div class="modal-sec-title">PURPOSE</div>
                     <p class="modal-sec-text">
-                        A static analysis and reverse engineering platform for quantum software compiled to LLVM Quantum Intermediate Representation (binary bitcode <code>.bc</code> and textual IR <code>.ll</code>). It decompiles quantum circuits, detects anti-analysis obfuscation, and formally proves functional equivalence.
+                        A zero-install static analysis and reverse engineering platform for quantum software compiled to LLVM Quantum Intermediate Representation (native binary bitcode <code>.bc</code> &amp; textual IR <code>.ll</code> decoded in pure Rust WebAssembly). It decompiles quantum circuits, detects anti-analysis obfuscation, and formally proves unitary equivalence up to 64 qubits via dense simulation and canonical QMDD alternating checking.
                     </p>
                 </div>
 
                 <div class="modal-section">
                     <div class="modal-sec-title">WORKFLOW</div>
                     <ol class="modal-list">
-                        <li><strong>Load:</strong> Click <code>Load QIR</code> to open a bitcode (<code>.bc</code>) or IR (<code>.ll</code>) file, or paste assembly directly into the <code>Source</code> editor.</li>
-                        <li><strong>Analyze:</strong> Click <code>Analyze</code> to decompile instructions, detect obfuscation patterns, and verify unitary matrix equivalence.</li>
+                        <li><strong>Load:</strong> Click <code>Load QIR</code> or drag &amp; drop a binary LLVM bitcode (<code>.bc</code>) or textual IR (<code>.ll</code>) file directly in-browser, or paste assembly into the <code>Source</code> editor.</li>
+                        <li><strong>Analyze:</strong> Click <code>Analyze</code> to decode bitcode, decompile instructions, detect obfuscation patterns, and verify unitary equivalence (up to 64 qubits via QMDD).</li>
                         <li><strong>Inspect:</strong> Examine findings across the <code>Disassembly</code>, <code>Circuit</code>, <code>Deobfuscation</code>, and <code>OpenQASM</code> viewports.</li>
                     </ol>
                 </div>
@@ -145,7 +169,7 @@
                     <ul class="modal-list">
                         <li><strong>Source:</strong> Raw QIR assembly editor and bitcode file drop zone.</li>
                         <li><strong>Disassembly:</strong> Linear instruction stream with decoded qubits, angles, and hex opcodes.</li>
-                        <li><strong>Circuit:</strong> Interactive topological schematic of quantum wires and scheduled gates.</li>
+                        <li><strong>Circuit:</strong> Vector SVG topological schematic of quantum wires and scheduled gates.</li>
                         <li><strong>Deobfuscation:</strong> Structural audit report, detected anomalies, and minimal canonical circuit.</li>
                         <li><strong>OpenQASM:</strong> Decompiled OpenQASM 3.0 code ready for quantum backends and simulators.</li>
                     </ul>
@@ -167,13 +191,13 @@
                     </div>
                     <div class="install-command-box">
                         <code id="installCommandText">curl -sSL https://raw.githubusercontent.com/Iqumnov/Qir-Reversing/main/install.sh | bash</code>
-                        <button class="btn icon-btn" id="btnCopyInstall" title="Copy Install Command">Copy</button>
+                        <button class="btn action-btn" id="btnCopyInstall" title="Copy Install Command">Copy</button>
                     </div>
                     <ul class="modal-list">
                         <li><strong>qir-rev (CLI Toolchain):</strong> High-throughput local terminal reversing, batch processing, and scriptable pipelines without browser memory or execution limits (alias: <code>qrev</code>).</li>
-                        <li><strong>qir-rev-mcp (AI Agent Server):</strong> Native Model Context Protocol server enabling AI assistants (Cursor, Claude Desktop, Antigravity) to audit and optimize circuits directly.</li>
-                        <li><strong>Cutter &amp; Rizin Plugin:</strong> Native C-ABI plugin (<code>librz_qir.so</code> / <code>rz_qir.dll</code>) and interactive dock for deep binary and quantum decompilation.</li>
-                        <li><strong>qir-gui (Standalone Desktop GUI):</strong> Dedicated desktop application with offline capability and native OS file dialogs.</li>
+                        <li><strong>qir-rev-mcp (AI Agent Server):</strong> Native Model Context Protocol server enabling AI coding assistants (Cursor, Claude Desktop, MCP clients) to audit and optimize circuits directly.</li>
+                        <li><strong>Cutter &amp; Rizin Plugin:</strong> Native C-ABI plugin (<code>librz_qir.so</code> / <code>librz_qir.dylib</code> / <code>rz_qir.dll</code>) and interactive Python dock for deep binary and quantum decompilation.</li>
+                        <li><strong>Desktop GUI (Source Checkout):</strong> Run <code>launch_gui.sh</code> or <code>python -m qir_plugin.qir_gui</code> from the cloned repository for standalone offline GUI analysis.</li>
                     </ul>
                 </div>
 

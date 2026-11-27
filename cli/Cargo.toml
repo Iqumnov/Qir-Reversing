@@ -3,6 +3,7 @@ name = "qir-cli"
 description = "Command-line tool for LLVM Quantum Intermediate Representation (QIR) reverse engineering"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true

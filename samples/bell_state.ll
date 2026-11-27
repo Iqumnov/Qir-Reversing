@@ -1,5 +1,5 @@
-; ModuleID = 'lr2_quantum_demo'
-source_filename = "lr2_quantum_demo"
+; ModuleID = 'bell_state'
+source_filename = "bell_state"
 
 define void @main() #0 {
 entry:

@@ -3,6 +3,7 @@ name = "qir-mcp"
 description = "Model Context Protocol (MCP) server for Quantum Intermediate Representation (QIR) reverse engineering"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -15,5 +16,4 @@ path = "src/main.rs"
 qir-core = { path = "../core" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tokio = { version = "1.36", features = ["full"] }
 

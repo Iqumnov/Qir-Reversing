@@ -12,26 +12,27 @@ The documentation is organized according to the **Diataxis information architect
 
 ```
 docs/
-├── README.md                           # Documentation Portal & Navigation
+├── README.md                                 # Documentation Portal & Navigation
 ├── getting-started/
-│   ├── installation.md                 # Rust Toolchain, Native CLI, Docker, WASM
-│   └── quickstart.md                   # 5-minute reverse-engineering walkthrough
+│   └── quickstart.md                         # Build, CLI & verification walkthrough
 ├── architecture/
-│   ├── qir-specification.md            # LLVM QIR Profile Specification & Bitcode
-│   └── quantum-dag.md                  # Quantum Circuit DAG & Topological Sorter
+│   └── system-architecture.md                # Workspace subsystems & Hilbert verification
 ├── engines/
-│   └── deobfuscation-passes.md         # Involutions, Rotations, Dead Qubits
+│   ├── deobfuscation-passes.md               # Involutions, Rotations, Dead Qubits
+│   ├── quantum-commutation-algebra.md        # Pauli & controlled-gate commutator rules
+│   └── unitary-hilbert-space.md              # Dense 2^N & Canonical QMDD verification (<=64q)
 └── reference/
-    ├── cli-reference.md                # Full command-line interface documentation
-    └── openqasm-mapping.md             # QIR intrinsic to OpenQASM 3.0 semantic map
+    ├── cli-reference.md                      # Full command-line interface documentation
+    └── mcp-specification.md                  # JSON-RPC 2.0 MCP tools & invocation
 ```
 
 ---
 
 ## ⚡ Core Concepts
 
-* **Zero-Copy Parser (`qir-core`)**: Memory-safe parsing of textual LLVM IR (`.ll`) and binary bitcode (`.bc`) with IEEE-754 64-bit floating-point extraction.
-* **Quantum Circuit DAG**: Models qubit timelines as a Directed Acyclic Graph (DAG) for exact dependency analysis and circuit depth profiling.
+* **Pure-Rust Bitcode & Zero-Copy Parser (`qir-core`)**: Memory-safe decoding of textual LLVM IR (`.ll`) and binary LLVM bitcode (`BC\xc0\xde` / `0x0B17C0DE` `.bc` containers) with IEEE-754 64-bit floating-point extraction.
+* **Lookahead Commutation Engine**: Performs algebraic peephole lookahead across commuting gates without breaking semantic ordering.
 * **Peephole Optimization Engine**: Multi-pass algebraic reduction eliminating self-inverse pairs ($H \cdot H = I$), continuous opposite rotations ($R_z(\theta) \cdot R_z(-\theta) = I$), and dead qubit telemetry.
+* **Hybrid Formal Equivalence Checker (`<=64q`)**: Exact dense $2^N \times 2^N$ Hilbert simulation ($\le 12$q native / $\le 10$q WASM) paired with Canonical QMDD alternating checking ($G \to \mathbb{I} \leftarrow H^\dagger$) up to 64 qubits.
 * **Multi-Target Ecosystem**: Compiles natively to Linux/Windows/macOS CLI binaries, WebAssembly (`wasm32-unknown-unknown`) for Cloudflare Pages / Workers, and native C-FFI shared libraries (`librz_qir.so`) for Rizin and Cutter.
 

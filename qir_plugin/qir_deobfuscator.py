@@ -18,15 +18,13 @@ import math
 import copy
 from typing import List, Optional, Dict, Tuple, Set, Any
 
-# Ensure local plugin directory is always in sys.path
-_PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
-if _PLUGIN_DIR not in sys.path:
-    sys.path.insert(0, _PLUGIN_DIR)
-
-try:
+if __package__:
+    from .qir_parser import QuantumInstruction  # type: ignore
+else:
+    _PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
+    if _PLUGIN_DIR not in sys.path:
+        sys.path.insert(0, _PLUGIN_DIR)
     from qir_parser import QuantumInstruction  # type: ignore
-except ImportError:
-    from qir_plugin.qir_parser import QuantumInstruction  # type: ignore
 
 
 class ObfuscationFinding:
@@ -47,131 +45,70 @@ class ObfuscationFinding:
         return f"[{self.severity}] {self.pattern_type}: {self.description}"
 
 
+_UNITARY_SINGLE = frozenset({
+    'h', 'x', 'y', 'z', 's', 'sdg', 's_adj', 's_dag',
+    't', 'tdg', 't_adj', 't_dag', 'rx', 'ry', 'rz',
+})
+_UNITARY_MULTI = frozenset({'cx', 'cnot', 'cz', 'swap', 'ccx', 'toffoli'})
+_UNITARY_OPS = _UNITARY_SINGLE | _UNITARY_MULTI
+_Z_FAMILY = frozenset({'z', 's', 'sdg', 's_adj', 's_dag', 't', 'tdg', 't_adj', 't_dag', 'rz'})
+_X_FAMILY = frozenset({'x', 'rx'})
+_Y_FAMILY = frozenset({'y', 'ry'})
+_Z8_MAP = {'t': 1, 's': 2, 'z': 4, 'sdg': 6, 's_adj': 6, 's_dag': 6, 'tdg': 7, 't_adj': 7, 't_dag': 7}
+_Z8_INV = {1: 't', 2: 's', 4: 'z', 6: 'sdg', 7: 'tdg'}
+
+
 class QIRDeobfuscator:
     """Analytical engine for detecting and eliminating quantum obfuscation."""
+    _ROT_EPS = 1e-6
+
     def __init__(self) -> None:
         self.findings: List[ObfuscationFinding] = []
         self.cleaned_instructions: List[QuantumInstruction] = []
         self.obfuscation_ratio: float = 0.0
 
+    @classmethod
+    def _is_identity_angle(cls, theta: float) -> bool:
+        if not math.isfinite(theta):
+            return False
+        norm = theta % math.tau
+        return norm < cls._ROT_EPS or abs(norm - math.tau) < cls._ROT_EPS
+
+    @staticmethod
+    def _wrap_angle_signed_pi(theta: float) -> float:
+        norm = ((theta + math.pi) % math.tau) - math.pi
+        if abs(norm + math.pi) < 1e-12:
+            return math.pi
+        return 0.0 if abs(norm) == 0.0 else norm
+
     def analyze(self, instructions: List[QuantumInstruction]) -> List[ObfuscationFinding]:
         """Full static analysis run to catalog all obfuscation artifacts."""
-        self.findings = []
-        insts: List[QuantumInstruction] = [copy.deepcopy(inst) for inst in instructions]
-
-        # 1. Dead Qubits Analysis (Qubit Injection)
-        measured_qubits: Set[int] = set()
-        for inst in insts:
-            if inst.op == 'mz':
-                measured_qubits.update(inst.qubits)
-
-        influencing_qubits: Set[int] = set(measured_qubits)
-        changed: bool = True
-        while changed:
-            changed = False
-            for inst in insts:
-                if inst.op in ('cx', 'cnot', 'cz', 'swap', 'ccx'):
-                    q_set: Set[int] = set(inst.qubits)
-                    if q_set & influencing_qubits and not q_set.issubset(influencing_qubits):
-                        influencing_qubits.update(q_set)
-                        changed = True
-
-        all_qubits: Set[int] = set()
-        for inst in insts:
-            all_qubits.update(inst.qubits)
-
-        dead_qubits: Set[int] = all_qubits - influencing_qubits
-        if dead_qubits:
-            for dq in sorted(dead_qubits):
-                dead_indices: List[int] = [idx for idx, inst in enumerate(insts) if dq in inst.qubits]
-                self.findings.append(ObfuscationFinding(
-                    pattern_type="DEAD_QUBIT_INJECTION",
-                    description=f"Qubit q[{dq}] undergoes operations but is NEVER measured and never couples to measured observables.",
-                    gate_indices=dead_indices,
-                    severity="HIGH"
-                ))
-
-        # 2. Commuting Wire Analysis for Involutory & Inverse pairs
-        # Tracks active gates per qubit wire to find commuting cancelations
-        wire_active: Dict[Any, Optional[Tuple[int, QuantumInstruction]]] = {}
-        for idx, inst in enumerate(insts):
-            if inst.is_control_flow:
-                continue
-
-            # Check single qubit gate cancelation across commutativity
-            if len(inst.qubits) == 1:
-                q: int = inst.qubits[0]
-                prev_info = wire_active.get(q)
-                if prev_info:
-                    p_idx, p_inst = prev_info
-                    # Check if p_inst and inst cancel
-                    if self._can_cancel(p_inst, inst):
-                        self.findings.append(ObfuscationFinding(
-                            pattern_type="IDENTITY_INVOLUTION_PAIR",
-                            description=f"Commuting self-inverting pair: {p_inst.op.upper()} * {inst.op.upper()} = I on q[{q}].",
-                            gate_indices=[p_idx, idx],
-                            severity="MEDIUM"
-                        ))
-                        wire_active[q] = None
-                        continue
-                    elif self._can_cancel_rotations(p_inst, inst):
-                        self.findings.append(ObfuscationFinding(
-                            pattern_type="INVERSE_ROTATION_CANCELLATION",
-                            description=f"Commuting inverse rotation: {p_inst.op.upper()}({p_inst.params[0]:.4f}) * {inst.op.upper()}({inst.params[0]:.4f}) = I on q[{q}].",
-                            gate_indices=[p_idx, idx],
-                            severity="MEDIUM"
-                        ))
-                        wire_active[q] = None
-                        continue
-
-                wire_active[q] = (idx, inst)
-
-            elif len(inst.qubits) >= 2:
-                # Two-qubit gate: check exact duplicate 2-qubit involution
-                q_pair: Tuple[int, ...] = tuple(inst.qubits)
-                p_info = wire_active.get(q_pair)
-                if p_info:
-                    p_idx, p_inst = p_info
-                    if p_inst.op == inst.op:
-                        self.findings.append(ObfuscationFinding(
-                            pattern_type="IDENTITY_INVOLUTION_PAIR",
-                            description=f"Redundant 2-qubit involution: {inst.op.upper()} * {inst.op.upper()} = I on qubits {inst.qubits}.",
-                            gate_indices=[p_idx, idx],
-                            severity="MEDIUM"
-                        ))
-                        wire_active[q_pair] = None
-                        for q_idx in inst.qubits:
-                            wire_active[q_idx] = None
-                        continue
-
-                wire_active[q_pair] = (idx, inst)
-                # Invalidate individual qubit wires because of 2-qubit barrier
-                for q_idx in inst.qubits:
-                    wire_active[q_idx] = (idx, inst)
-
-        # Compute Obfuscation Ratio
-        obfuscated_indices: Set[int] = set()
-        for f in self.findings:
-            obfuscated_indices.update(f.gate_indices)
-
-        total_gates: int = len(instructions)
-        self.obfuscation_ratio = (len(obfuscated_indices) / total_gates * 100.0) if total_gates > 0 else 0.0
-
+        self.deobfuscate(instructions)
         return self.findings
 
     def _can_cancel(self, g1: QuantumInstruction, g2: QuantumInstruction) -> bool:
-        """Checks if two single-qubit gates cancel out to Identity."""
+        """Checks if two single-qubit involutory gates cancel out to Identity (G^2 = I)."""
         if g1.qubits != g2.qubits:
             return False
         # Involutory: H*H=I, X*X=I, Y*Y=I, Z*Z=I
-        if g1.op in ('h', 'x', 'y', 'z') and g1.op == g2.op:
-            return True
-        # Adjoint pairs: S*S_adj=I, T*T_adj=I
-        if (g1.op == 's' and g2.op in ('s_adj', 'sdg')) or (g2.op == 's' and g1.op in ('s_adj', 'sdg')):
-            return True
-        if (g1.op == 't' and g2.op in ('t_adj', 'tdg')) or (g2.op == 't' and g1.op in ('t_adj', 'tdg')):
-            return True
-        return False
+        return g1.op in ('h', 'x', 'y', 'z') and g1.op == g2.op
+
+    def _multi_gate_key(self, op: str, qubits: List[int]) -> Optional[Tuple[Any, ...]]:
+        """Canonical key for involutory multi-qubit gates."""
+        if op in ('cx', 'cnot') and len(qubits) == 2:
+            return ('cx', qubits[0], qubits[1])
+        if op in ('cz', 'swap') and len(qubits) == 2:
+            return (op, min(qubits[0], qubits[1]), max(qubits[0], qubits[1]))
+        if op in ('ccx', 'toffoli') and len(qubits) == 3:
+            c0, c1 = min(qubits[0], qubits[1]), max(qubits[0], qubits[1])
+            return ('ccx', c0, c1, qubits[2])
+        return None
+
+    def _can_cancel_multi(self, g1: QuantumInstruction, g2: QuantumInstruction) -> bool:
+        """Checks if two multi-qubit involutory gates cancel to Identity."""
+        k1 = self._multi_gate_key(g1.op, g1.qubits)
+        k2 = self._multi_gate_key(g2.op, g2.qubits)
+        return k1 is not None and k1 == k2
 
     def _can_cancel_rotations(self, g1: QuantumInstruction, g2: QuantumInstruction) -> bool:
         """Checks if two rotation gates around the same axis cancel to 0 mod 2π."""
@@ -179,80 +116,326 @@ class QIRDeobfuscator:
             return False
         if not g1.params or not g2.params:
             return False
-        theta_sum: float = g1.params[0] + g2.params[0]
-        rem: float = abs(theta_sum) % (2.0 * math.pi)
-        return rem < 1e-4 or abs(rem - 2.0 * math.pi) < 1e-4
+        t1, t2 = g1.params[0], g2.params[0]
+        if not (math.isfinite(t1) and math.isfinite(t2)):
+            return False
+        theta_sum: float = t1 + t2
+        return math.isfinite(theta_sum) and self._is_identity_angle(theta_sum)
+
+    def _try_consolidate_discrete_phase(
+        self, g1: QuantumInstruction, g2: QuantumInstruction
+    ) -> Tuple[bool, Optional[QuantumInstruction]]:
+        """Consolidate Z_8 discrete phase gates on the same qubit; returns (matched, replacement_or_none)."""
+        if len(g1.qubits) != 1 or g1.qubits != g2.qubits:
+            return (False, None)
+        v1 = _Z8_MAP.get(g1.op)
+        v2 = _Z8_MAP.get(g2.op)
+        if v1 is None or v2 is None:
+            return (False, None)
+        s = (v1 + v2) % 8
+        if s == 0:
+            return (True, None)
+        new_op = _Z8_INV.get(s)
+        if new_op is None:
+            return (False, None)
+        return (True, QuantumInstruction(new_op, qubits=list(g1.qubits), raw_call=f"{new_op} q[{g1.qubits[0]}]"))
+
+    def _try_merge_rotations(
+        self, g1: QuantumInstruction, g2: QuantumInstruction
+    ) -> Tuple[bool, Optional[QuantumInstruction]]:
+        """Merge two rotations along the same axis/qubit; returns (matched, merged_or_none)."""
+        if g1.qubits != g2.qubits or g1.op != g2.op or g1.op not in ('rx', 'ry', 'rz'):
+            return (False, None)
+        if not g1.params or not g2.params:
+            return (False, None)
+        t1, t2 = g1.params[0], g2.params[0]
+        if not (math.isfinite(t1) and math.isfinite(t2)):
+            return (False, None)
+        total = t1 + t2
+        if not math.isfinite(total):
+            return (False, None)
+        if self._is_identity_angle(total):
+            return (True, None)
+        norm = self._wrap_angle_signed_pi(total)
+        return (True, QuantumInstruction(
+            g1.op, qubits=list(g1.qubits), params=[norm], raw_call=f"{g1.op}({norm:.6f}) q[{g1.qubits[0]}]"
+        ))
+
+    def _gates_interfere(self, g1: QuantumInstruction, g2: QuantumInstruction) -> bool:
+        """Returns True if g1 and g2 do NOT commute."""
+        if g1.is_control_flow or g2.is_control_flow:
+            return True
+        if (g1.op == 'barrier' and not g1.qubits) or (g2.op == 'barrier' and not g2.qubits):
+            return True
+        if g1.op not in _UNITARY_OPS or g2.op not in _UNITARY_OPS:
+            if (g1.op == 'barrier' or g2.op == 'barrier') and not (set(g1.qubits) & set(g2.qubits)):
+                return False
+            return True
+        shared = set(g1.qubits) & set(g2.qubits)
+        if not shared:
+            return False
+        for q in shared:
+            if g1.op in _Z_FAMILY and g2.op in _Z_FAMILY:
+                continue
+            if g1.op in _X_FAMILY and g2.op in _X_FAMILY:
+                continue
+            if g1.op in _Y_FAMILY and g2.op in _Y_FAMILY:
+                continue
+            if g1.op in ('cx', 'cnot') and len(g1.qubits) == 2 and g1.qubits[0] != g1.qubits[1]:
+                if g2.op in _Z_FAMILY and q == g1.qubits[0]:
+                    continue
+                if g2.op in _X_FAMILY and q == g1.qubits[1]:
+                    continue
+            if g2.op in ('cx', 'cnot') and len(g2.qubits) == 2 and g2.qubits[0] != g2.qubits[1]:
+                if g1.op in _Z_FAMILY and q == g2.qubits[0]:
+                    continue
+                if g1.op in _X_FAMILY and q == g2.qubits[1]:
+                    continue
+            if g1.op == 'cz' and g2.op == 'cz':
+                continue
+            if g1.op == 'cz' and g2.op in _Z_FAMILY:
+                continue
+            if g2.op == 'cz' and g1.op in _Z_FAMILY:
+                continue
+            if (
+                g1.op in ('cx', 'cnot') and g2.op in ('cx', 'cnot')
+                and len(g1.qubits) == 2 and len(g2.qubits) == 2
+                and g1.qubits[0] != g1.qubits[1] and g2.qubits[0] != g2.qubits[1]
+            ):
+                if g1.qubits[0] == g2.qubits[0] or g1.qubits[1] == g2.qubits[1]:
+                    continue
+            if g1.op in ('ccx', 'toffoli') and len(g1.qubits) == 3 and len(set(g1.qubits)) == 3:
+                if g2.op in _Z_FAMILY and q in (g1.qubits[0], g1.qubits[1]):
+                    continue
+                if g2.op in _X_FAMILY and q == g1.qubits[2]:
+                    continue
+            if g2.op in ('ccx', 'toffoli') and len(g2.qubits) == 3 and len(set(g2.qubits)) == 3:
+                if g1.op in _Z_FAMILY and q in (g2.qubits[0], g2.qubits[1]):
+                    continue
+                if g1.op in _X_FAMILY and q == g2.qubits[2]:
+                    continue
+            if (
+                g1.op in ('ccx', 'toffoli') and g2.op in ('ccx', 'toffoli')
+                and len(g1.qubits) == 3 and len(g2.qubits) == 3
+                and len(set(g1.qubits)) == 3 and len(set(g2.qubits)) == 3
+            ):
+                if {g1.qubits[0], g1.qubits[1]} == {g2.qubits[0], g2.qubits[1]}:
+                    continue
+            return True
+        return False
 
     def deobfuscate(self, instructions: List[QuantumInstruction]) -> List[QuantumInstruction]:
         """Multi-pass iterative circuit deobfuscation until fixed point."""
-        self.analyze(instructions)
+        self.findings = []
+        orig_copy: List[QuantumInstruction] = [copy.deepcopy(inst) for inst in instructions]
+        orig_gate_count = sum(1 for inst in orig_copy if not inst.is_control_flow)
+        if orig_gate_count == 0:
+            self.obfuscation_ratio = 0.0
+            self.cleaned_instructions = orig_copy
+            return self.cleaned_instructions
 
-        current: List[QuantumInstruction] = [copy.deepcopy(inst) for inst in instructions]
+        # 1. Eliminate Dead Qubits via backwards causal entanglement cone
+        measured_qubits: Set[int] = set()
+        for inst in orig_copy:
+            if not inst.is_control_flow and (inst.op in ('mz', 'mresetz') or inst.results):
+                measured_qubits.update(inst.qubits)
 
-        # 1. Eliminate Dead Qubits completely
-        dead_findings = [f for f in self.findings if f.pattern_type == "DEAD_QUBIT_INJECTION"]
-        dead_indices: Set[int] = set()
-        for df in dead_findings:
-            dead_indices.update(df.gate_indices)
+        dead_qubits: Set[int] = set()
+        if measured_qubits:
+            influencing_qubits: Set[int] = set(measured_qubits)
+            changed_cone: bool = True
+            while changed_cone:
+                changed_cone = False
+                for inst in reversed(orig_copy):
+                    if (
+                        not inst.is_control_flow
+                        and inst.op not in ('barrier', 'qalloc', 'qalloc_array', 'qfree', 'record_output')
+                        and len(inst.qubits) >= 2
+                    ):
+                        q_set: Set[int] = set(inst.qubits)
+                        if q_set & influencing_qubits and not q_set.issubset(influencing_qubits):
+                            influencing_qubits.update(q_set)
+                            changed_cone = True
 
-        current = [inst for idx, inst in enumerate(current) if idx not in dead_indices]
+            all_qubits: Set[int] = set()
+            for inst in orig_copy:
+                if not inst.is_control_flow:
+                    all_qubits.update(inst.qubits)
+            dead_qubits = all_qubits - influencing_qubits
 
-        # 2. Iterative DAG-based Peephole Pass
+            for dq in sorted(dead_qubits):
+                dead_indices = [
+                    idx for idx, inst in enumerate(orig_copy)
+                    if not inst.is_control_flow and inst.op != 'barrier' and dq in inst.qubits
+                ]
+                if not dead_indices:
+                    dead_indices = [
+                        idx for idx, inst in enumerate(orig_copy)
+                        if not inst.is_control_flow and inst.op == 'barrier' and dq in inst.qubits
+                    ]
+                self.findings.append(ObfuscationFinding(
+                    pattern_type="DEAD_QUBIT_INJECTION",
+                    description=f"Qubit q[{dq}] undergoes operations but is NEVER measured and never couples to measured observables.",
+                    gate_indices=dead_indices,
+                    severity="HIGH",
+                ))
+
+        indexed_stream: List[Tuple[int, QuantumInstruction]] = []
+        for idx, inst in enumerate(orig_copy):
+            if inst.is_control_flow:
+                indexed_stream.append((idx, inst))
+            elif inst.op == 'barrier':
+                if not inst.qubits:
+                    indexed_stream.append((idx, inst))
+                else:
+                    live_qs = [q for q in inst.qubits if q not in dead_qubits]
+                    if live_qs:
+                        inst.qubits = live_qs
+                        indexed_stream.append((idx, inst))
+            elif not any(q in dead_qubits for q in inst.qubits):
+                indexed_stream.append((idx, inst))
+
+        # 2. Iterative DAG-based Peephole Pass until true fixed point
         changed: bool = True
-        pass_count: int = 0
-        while changed and pass_count < 10:
-            pass_count += 1
+        while changed:
             changed = False
             i: int = 0
-            while i < len(current) - 1:
-                # Look ahead for commuting partner
-                curr: QuantumInstruction = current[i]
+            while i < len(indexed_stream):
+                orig_i, curr = indexed_stream[i]
                 found_match: bool = False
-                intervening_qubits: Set[int] = set()
 
-                for j in range(i + 1, len(current)):
-                    nxt: QuantumInstruction = current[j]
+                if curr.is_control_flow or curr.op not in _UNITARY_OPS:
+                    i += 1
+                    continue
 
-                    # If nxt shares any qubit with curr
-                    shared: Set[int] = set(curr.qubits) & set(nxt.qubits)
+                if curr.op in ('rx', 'ry', 'rz') and curr.params and self._is_identity_angle(curr.params[0]):
+                    self.findings.append(ObfuscationFinding(
+                        pattern_type="TRIVIAL_IDENTITY_ROTATION",
+                        description=f"Trivial identity rotation (angle ≡ 0 mod 2π) removed: {curr.mnemonic()} = I",
+                        gate_indices=[orig_i],
+                        severity="HIGH",
+                    ))
+                    indexed_stream.pop(i)
+                    changed = True
+                    break
 
-                    if shared:
-                        # They interact on the same qubit wire!
-                        # Check if they cancel
-                        if (len(curr.qubits) == 1 and len(nxt.qubits) == 1 and
-                            curr.qubits == nxt.qubits):
-                            if self._can_cancel(curr, nxt) or self._can_cancel_rotations(curr, nxt):
-                                current.pop(j)
-                                current.pop(i)
-                                changed = True
-                                found_match = True
-                                break
-                        elif (curr.op in ('cx', 'cnot', 'cz', 'swap') and
-                              curr.op == nxt.op and curr.qubits == nxt.qubits):
-                            current.pop(j)
-                            current.pop(i)
+                for j in range(i + 1, len(indexed_stream)):
+                    orig_j, nxt = indexed_stream[j]
+
+                    # Never commute quantum gates across control-flow or non-barrier non-unitary boundaries
+                    if nxt.is_control_flow:
+                        break
+                    if nxt.op not in _UNITARY_OPS:
+                        if self._gates_interfere(curr, nxt):
+                            break
+                        continue
+
+                    if self._can_cancel(curr, nxt) or self._can_cancel_multi(curr, nxt):
+                        self.findings.append(ObfuscationFinding(
+                            pattern_type="IDENTITY_INVOLUTION_PAIR",
+                            description=f"Commuting self-inverting pair: {curr.mnemonic()} · {nxt.mnemonic()} = I",
+                            gate_indices=[orig_i, orig_j],
+                            severity="HIGH",
+                        ))
+                        indexed_stream.pop(j)
+                        indexed_stream.pop(i)
+                        changed = True
+                        found_match = True
+                        break
+
+                    if self._can_cancel_rotations(curr, nxt):
+                        self.findings.append(ObfuscationFinding(
+                            pattern_type="INVERSE_ROTATION_CANCELLATION",
+                            description=f"Commuting inverse rotation: {curr.mnemonic()} · {nxt.mnemonic()} = I",
+                            gate_indices=[orig_i, orig_j],
+                            severity="HIGH",
+                        ))
+                        indexed_stream.pop(j)
+                        indexed_stream.pop(i)
+                        changed = True
+                        found_match = True
+                        break
+
+                    if len(curr.qubits) == 1 and curr.qubits == nxt.qubits:
+                        z8_matched, z8_repl = self._try_consolidate_discrete_phase(curr, nxt)
+                        if z8_matched:
+                            if z8_repl is None:
+                                self.findings.append(ObfuscationFinding(
+                                    pattern_type="DISCRETE_PHASE_CANCELLATION",
+                                    description=f"Discrete phase inverse cancellation: {curr.mnemonic()} · {nxt.mnemonic()} = I",
+                                    gate_indices=[orig_i, orig_j],
+                                    severity="HIGH",
+                                ))
+                                indexed_stream.pop(j)
+                                indexed_stream.pop(i)
+                            else:
+                                self.findings.append(ObfuscationFinding(
+                                    pattern_type="DISCRETE_PHASE_CONSOLIDATION",
+                                    description=f"Consolidated discrete Clifford+T phases: {curr.mnemonic()} · {nxt.mnemonic()} -> {z8_repl.mnemonic()}",
+                                    gate_indices=[orig_i, orig_j],
+                                    severity="MEDIUM",
+                                ))
+                                indexed_stream[i] = (orig_i, z8_repl)
+                                indexed_stream.pop(j)
                             changed = True
                             found_match = True
                             break
-                        else:
-                            # Interacting non-canceling gate: blocks further commutation
+
+                        rot_matched, merged_rot = self._try_merge_rotations(curr, nxt)
+                        if rot_matched:
+                            if merged_rot is None:
+                                self.findings.append(ObfuscationFinding(
+                                    pattern_type="INVERSE_ROTATION_CANCELLATION",
+                                    description=f"Commuting inverse rotation: {curr.mnemonic()} · {nxt.mnemonic()} = I",
+                                    gate_indices=[orig_i, orig_j],
+                                    severity="HIGH",
+                                ))
+                                indexed_stream.pop(j)
+                                indexed_stream.pop(i)
+                            else:
+                                self.findings.append(ObfuscationFinding(
+                                    pattern_type="CONTINUOUS_ROTATION_CONSOLIDATION",
+                                    description=f"Consolidated rotations: {curr.mnemonic()} + {nxt.mnemonic()} -> {merged_rot.mnemonic()}",
+                                    gate_indices=[orig_i, orig_j],
+                                    severity="MEDIUM",
+                                ))
+                                indexed_stream[i] = (orig_i, merged_rot)
+                                indexed_stream.pop(j)
+                            changed = True
+                            found_match = True
                             break
-                    else:
-                        # Disjoint qubits: nxt commutes past curr, continue searching wire
-                        intervening_qubits.update(nxt.qubits)
+
+                    if self._gates_interfere(curr, nxt):
+                        break
 
                 if found_match:
-                    continue
+                    break
                 i += 1
 
-        # Reassign sequential synthetic addresses
+        current = [inst for _, inst in indexed_stream]
+        clean_gate_count = sum(1 for inst in current if not inst.is_control_flow)
+        self.obfuscation_ratio = ((orig_gate_count - clean_gate_count) / orig_gate_count) * 100.0
+
+        # Reassign sequential synthetic addresses and ensure merged instructions have valid 4-byte opcodes
         addr: int = 0
         for inst in current:
+            if not inst.synthetic_bytes:
+                inst.synthetic_bytes = self._encode_synthetic_bytes(inst)
             inst.address = addr
-            addr += len(inst.synthetic_bytes)
+            if not (inst.is_control_flow and inst.label):
+                addr += len(inst.synthetic_bytes)
 
         self.cleaned_instructions = current
         return self.cleaned_instructions
+
+    @staticmethod
+    def _encode_synthetic_bytes(inst: QuantumInstruction) -> bytes:
+        """Encodes a 4-byte synthetic opcode for reconstructed or merged instructions."""
+        if __package__:
+            from .qir_parser import QIRParser  # type: ignore
+        else:
+            from qir_parser import QIRParser  # type: ignore
+        return QIRParser.encode_synthetic_bytes(inst)
 
     def format_report(self) -> str:
         """Generates structured deobfuscation audit report."""
@@ -289,11 +472,12 @@ if __name__ == "__main__":
         parser = QIRParser()
         raw_insts = parser.parse_file(sys.argv[1])
         deobf = QIRDeobfuscator()
-        findings = deobf.analyze(raw_insts)
+        cleaned = deobf.deobfuscate(raw_insts)
         print(deobf.format_report())
 
-        cleaned = deobf.deobfuscate(raw_insts)
-        print(f"\n[+] Cleaned Instructions ({len(cleaned)} remaining of {len(raw_insts)}):")
+        n_clean = sum(1 for i in cleaned if not i.is_control_flow)
+        n_raw = sum(1 for i in raw_insts if not i.is_control_flow)
+        print(f"\n[+] Cleaned Instructions ({n_clean} remaining of {n_raw}):")
         dis = QIRDisassembler(parser)
         print(dis.format_disassembly(cleaned, filepath=sys.argv[1] + " [DEOBFUSCATED]"))
         print()

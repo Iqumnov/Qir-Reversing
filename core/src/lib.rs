@@ -4,6 +4,8 @@
 
 #![deny(unsafe_code)]
 
+pub mod bitcode;
+pub mod dd;
 pub mod deobfuscator;
 pub mod emitter;
 pub mod parser;

@@ -68,9 +68,11 @@ def generate_obfuscated_sample():
     qis.cx(q0, q1)
     qis.cx(q0, q1)
 
-    # Obfuscation 5: Dead qubit telemetry injection on q2
+    # Obfuscation 5: Dead qubit telemetry injection on q2 (5 gates matching verified benchmarks)
     qis.h(q2)
     qis.x(q2)
+    qis.y(q2)
+    qis.z(q2)
     qis.rz(0.5, q2)
 
     # Canonical phase

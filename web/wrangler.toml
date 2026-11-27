@@ -3,8 +3,10 @@ main = "worker.js"
 compatibility_date = "2024-11-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Static Assets (Workers Sites / Modern Workers Static Assets)
-assets = { directory = "." }
+# Static Assets (Workers Static Assets with explicit ASSETS binding)
+[assets]
+directory = "."
+binding = "ASSETS"
 
 # Observability
 [observability]

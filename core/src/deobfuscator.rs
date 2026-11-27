@@ -62,13 +62,44 @@ impl QirDeobfuscator {
 
         let orig_count = instructions.iter().filter(|i| !i.is_control_flow).count();
         if orig_count == 0 {
+            self.obfuscation_ratio = 0.0;
             return instructions.to_vec();
         }
 
         // Pass 1: Prune Dead Qubits
-        let (pass1_insts, dead_qubits) = self.prune_dead_qubits(instructions);
-        for &dq in &dead_qubits {
+        let (pass1_indexed, dead_qubits) = self.prune_dead_qubits_indexed(instructions);
+        let mut sorted_dead: Vec<Qubit> = dead_qubits.iter().copied().collect();
+        sorted_dead.sort();
+        for dq in sorted_dead {
             let id = self.findings.len() + 1;
+            let mut dead_indices: Vec<usize> = instructions
+                .iter()
+                .enumerate()
+                .filter_map(|(idx, inst)| {
+                    if !matches!(inst.gate, QuantumGate::Barrier(_))
+                        && inst.gate.active_qubits().contains(&dq)
+                    {
+                        Some(idx)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            if dead_indices.is_empty() {
+                dead_indices = instructions
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(idx, inst)| {
+                        if matches!(inst.gate, QuantumGate::Barrier(_))
+                            && inst.gate.active_qubits().contains(&dq)
+                        {
+                            Some(idx)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+            }
             self.findings.push(ObfuscationFinding {
                 id,
                 pattern_type: "DEAD_QUBIT_INJECTION".to_string(),
@@ -78,16 +109,16 @@ impl QirDeobfuscator {
                     dq.0
                 ),
                 qubits: vec![dq.0],
-                instruction_indices: Vec::new(),
+                instruction_indices: dead_indices,
             });
         }
 
         // Pass 2: Lookahead Peephole Optimization (Involutions & Continuous Rotations)
-        let pass2_insts = self.pass_peephole_lookahead(&pass1_insts);
+        let pass2_insts = self.pass_peephole_lookahead(pass1_indexed);
 
         let clean_count = pass2_insts.iter().filter(|i| !i.is_control_flow).count();
         self.obfuscation_ratio = if orig_count > 0 {
-            ((orig_count - clean_count) as f64 / orig_count as f64) * 100.0
+            (orig_count.saturating_sub(clean_count) as f64 / orig_count as f64) * 100.0
         } else {
             0.0
         };
@@ -100,6 +131,14 @@ impl QirDeobfuscator {
         &self,
         instructions: &[QuantumInstruction],
     ) -> (Vec<QuantumInstruction>, HashSet<Qubit>) {
+        let (indexed, dead) = self.prune_dead_qubits_indexed(instructions);
+        (indexed.into_iter().map(|(_, inst)| inst).collect(), dead)
+    }
+
+    fn prune_dead_qubits_indexed(
+        &self,
+        instructions: &[QuantumInstruction],
+    ) -> (Vec<(usize, QuantumInstruction)>, HashSet<Qubit>) {
         let mut measured_qubits = HashSet::new();
         let mut all_qubits = HashSet::new();
 
@@ -107,15 +146,28 @@ impl QirDeobfuscator {
             for q in inst.gate.active_qubits() {
                 all_qubits.insert(q);
             }
-            if let QuantumGate::Mz(q, _) = inst.gate {
-                measured_qubits.insert(q);
+            match &inst.gate {
+                QuantumGate::Mz(q, _) => {
+                    measured_qubits.insert(*q);
+                }
+                QuantumGate::Custom {
+                    qubits, results, ..
+                } if !results.is_empty() => {
+                    for &q in qubits {
+                        measured_qubits.insert(q);
+                    }
+                }
+                _ => {}
             }
         }
 
         // If the circuit contains no explicit measurements (e.g. pure unitary transformation or oracle),
         // all qubits are treated as live observable wires.
         if measured_qubits.is_empty() {
-            return (instructions.to_vec(), HashSet::new());
+            return (
+                instructions.iter().cloned().enumerate().collect(),
+                HashSet::new(),
+            );
         }
 
         // Propagate causal entanglement backwards from measurements
@@ -135,14 +187,25 @@ impl QirDeobfuscator {
                             changed = true;
                         }
                     }
-                    QuantumGate::CCX(c1, c2, t) if live_qubits.contains(&t) => {
-                        if !live_qubits.contains(&c1) {
-                            live_qubits.insert(c1);
-                            changed = true;
+                    QuantumGate::CCX(c1, c2, t) => {
+                        if live_qubits.contains(&c1)
+                            || live_qubits.contains(&c2)
+                            || live_qubits.contains(&t)
+                        {
+                            for q in [c1, c2, t] {
+                                if live_qubits.insert(q) {
+                                    changed = true;
+                                }
+                            }
                         }
-                        if !live_qubits.contains(&c2) {
-                            live_qubits.insert(c2);
-                            changed = true;
+                    }
+                    QuantumGate::Custom { ref qubits, .. }
+                        if qubits.len() >= 2 && qubits.iter().any(|q| live_qubits.contains(q)) =>
+                    {
+                        for &q in qubits {
+                            if live_qubits.insert(q) {
+                                changed = true;
+                            }
                         }
                     }
                     _ => {}
@@ -153,16 +216,43 @@ impl QirDeobfuscator {
         let dead_qubits: HashSet<Qubit> = all_qubits.difference(&live_qubits).copied().collect();
 
         if dead_qubits.is_empty() {
-            return (instructions.to_vec(), dead_qubits);
+            return (
+                instructions.iter().cloned().enumerate().collect(),
+                dead_qubits,
+            );
         }
 
-        let filtered: Vec<QuantumInstruction> = instructions
+        let filtered: Vec<(usize, QuantumInstruction)> = instructions
             .iter()
-            .filter(|inst| {
-                let qs = inst.gate.active_qubits();
-                !qs.iter().any(|q| dead_qubits.contains(q))
+            .enumerate()
+            .filter_map(|(idx, inst)| match &inst.gate {
+                QuantumGate::Barrier(qs) => {
+                    if qs.is_empty() {
+                        Some((idx, inst.clone()))
+                    } else {
+                        let live_qs: Vec<Qubit> = qs
+                            .iter()
+                            .copied()
+                            .filter(|q| !dead_qubits.contains(q))
+                            .collect();
+                        if live_qs.is_empty() {
+                            None
+                        } else {
+                            let mut cloned = inst.clone();
+                            cloned.gate = QuantumGate::Barrier(live_qs);
+                            Some((idx, cloned))
+                        }
+                    }
+                }
+                _ => {
+                    let qs = inst.gate.active_qubits();
+                    if qs.iter().any(|q| dead_qubits.contains(q)) {
+                        None
+                    } else {
+                        Some((idx, inst.clone()))
+                    }
+                }
             })
-            .cloned()
             .collect();
 
         (filtered, dead_qubits)
@@ -171,9 +261,8 @@ impl QirDeobfuscator {
     /// Lookahead peephole optimizer for self-inverse pairs and rotation cancellations.
     fn pass_peephole_lookahead(
         &mut self,
-        instructions: &[QuantumInstruction],
+        mut stream: Vec<(usize, QuantumInstruction)>,
     ) -> Vec<QuantumInstruction> {
-        let mut stream: Vec<QuantumInstruction> = instructions.to_vec();
         let mut modified = true;
 
         while modified {
@@ -181,20 +270,55 @@ impl QirDeobfuscator {
             let mut i = 0;
 
             while i < stream.len() {
-                if stream[i].is_control_flow {
+                if stream[i].1.is_control_flow
+                    || matches!(
+                        stream[i].1.gate,
+                        QuantumGate::Mz(_, _) | QuantumGate::Reset(_) | QuantumGate::Barrier(_)
+                    )
+                {
                     i += 1;
                     continue;
+                }
+
+                // Eliminate standalone trivial identity rotations: R*(0) or R*(2πk) ≡ I
+                if let Some(theta) = rotation_angle(&stream[i].1.gate) {
+                    if is_identity_rotation_angle(theta) {
+                        let id = self.findings.len() + 1;
+                        self.findings.push(ObfuscationFinding {
+                            id,
+                            pattern_type: "TRIVIAL_IDENTITY_ROTATION".to_string(),
+                            severity: ObfuscationSeverity::High,
+                            description: format!(
+                                "Trivial identity rotation (angle ≡ 0 mod 2π) removed: {} = I",
+                                stream[i].1.gate.mnemonic()
+                            ),
+                            qubits: stream[i]
+                                .1
+                                .gate
+                                .active_qubits()
+                                .iter()
+                                .map(|q| q.0)
+                                .collect(),
+                            instruction_indices: vec![stream[i].0],
+                        });
+                        stream.remove(i);
+                        modified = true;
+                        break;
+                    }
                 }
 
                 let mut j = i + 1;
 
                 while j < stream.len() {
-                    if stream[j].is_control_flow {
+                    if stream[j].1.is_control_flow {
                         break;
                     }
 
+                    let orig_i = stream[i].0;
+                    let orig_j = stream[j].0;
+
                     // Check for self-inverse cancellation (H*H = I, X*X = I, CX*CX = I)
-                    if self.can_cancel_involutions(&stream[i].gate, &stream[j].gate) {
+                    if self.can_cancel_involutions(&stream[i].1.gate, &stream[j].1.gate) {
                         let id = self.findings.len() + 1;
                         self.findings.push(ObfuscationFinding {
                             id,
@@ -202,11 +326,17 @@ impl QirDeobfuscator {
                             severity: ObfuscationSeverity::High,
                             description: format!(
                                 "Redundant self-inverse involutory pair: {} · {} = I",
-                                stream[i].gate.mnemonic(),
-                                stream[j].gate.mnemonic()
+                                stream[i].1.gate.mnemonic(),
+                                stream[j].1.gate.mnemonic()
                             ),
-                            qubits: stream[i].gate.active_qubits().iter().map(|q| q.0).collect(),
-                            instruction_indices: vec![i, j],
+                            qubits: stream[i]
+                                .1
+                                .gate
+                                .active_qubits()
+                                .iter()
+                                .map(|q| q.0)
+                                .collect(),
+                            instruction_indices: vec![orig_i, orig_j],
                         });
 
                         stream.remove(j);
@@ -217,7 +347,7 @@ impl QirDeobfuscator {
 
                     // Check for discrete phase group consolidation (Z_8: T, S, Z, S†, T†)
                     if let Some(replacement) =
-                        self.try_consolidate_discrete_phase(&stream[i].gate, &stream[j].gate)
+                        self.try_consolidate_discrete_phase(&stream[i].1.gate, &stream[j].1.gate)
                     {
                         let id = self.findings.len() + 1;
                         if let Some(clean_gate) = replacement {
@@ -227,19 +357,21 @@ impl QirDeobfuscator {
                                 severity: ObfuscationSeverity::Medium,
                                 description: format!(
                                     "Consolidated discrete Clifford+T phase gates: {} · {} -> {}",
-                                    stream[i].gate.mnemonic(),
-                                    stream[j].gate.mnemonic(),
+                                    stream[i].1.gate.mnemonic(),
+                                    stream[j].1.gate.mnemonic(),
                                     clean_gate.mnemonic()
                                 ),
                                 qubits: stream[i]
+                                    .1
                                     .gate
                                     .active_qubits()
                                     .iter()
                                     .map(|q| q.0)
                                     .collect(),
-                                instruction_indices: vec![i, j],
+                                instruction_indices: vec![orig_i, orig_j],
                             });
-                            stream[i].gate = clean_gate;
+                            stream[i].1.raw_ir = clean_gate.mnemonic();
+                            stream[i].1.gate = clean_gate;
                             stream.remove(j);
                         } else {
                             self.findings.push(ObfuscationFinding {
@@ -248,16 +380,17 @@ impl QirDeobfuscator {
                                 severity: ObfuscationSeverity::High,
                                 description: format!(
                                     "Inverse discrete phase gates cancelled out: {} · {} = I",
-                                    stream[i].gate.mnemonic(),
-                                    stream[j].gate.mnemonic()
+                                    stream[i].1.gate.mnemonic(),
+                                    stream[j].1.gate.mnemonic()
                                 ),
                                 qubits: stream[i]
+                                    .1
                                     .gate
                                     .active_qubits()
                                     .iter()
                                     .map(|q| q.0)
                                     .collect(),
-                                instruction_indices: vec![i, j],
+                                instruction_indices: vec![stream[i].0, stream[j].0],
                             });
                             stream.remove(j);
                             stream.remove(i);
@@ -268,7 +401,7 @@ impl QirDeobfuscator {
 
                     // Check for continuous rotation cancellation: Rz(theta) + Rz(-theta) = I
                     if let Some(replacement) =
-                        self.try_consolidate_rotations(&stream[i].gate, &stream[j].gate)
+                        self.try_consolidate_rotations(&stream[i].1.gate, &stream[j].1.gate)
                     {
                         let id = self.findings.len() + 1;
                         if let Some(clean_gate) = replacement {
@@ -278,19 +411,21 @@ impl QirDeobfuscator {
                                 severity: ObfuscationSeverity::Medium,
                                 description: format!(
                                     "Consolidated continuous rotations: {} + {} -> {}",
-                                    stream[i].gate.mnemonic(),
-                                    stream[j].gate.mnemonic(),
+                                    stream[i].1.gate.mnemonic(),
+                                    stream[j].1.gate.mnemonic(),
                                     clean_gate.mnemonic()
                                 ),
                                 qubits: stream[i]
+                                    .1
                                     .gate
                                     .active_qubits()
                                     .iter()
                                     .map(|q| q.0)
                                     .collect(),
-                                instruction_indices: vec![i, j],
+                                instruction_indices: vec![stream[i].0, stream[j].0],
                             });
-                            stream[i].gate = clean_gate;
+                            stream[i].1.raw_ir = clean_gate.mnemonic();
+                            stream[i].1.gate = clean_gate;
                             stream.remove(j);
                         } else {
                             self.findings.push(ObfuscationFinding {
@@ -299,16 +434,17 @@ impl QirDeobfuscator {
                                 severity: ObfuscationSeverity::High,
                                 description: format!(
                                     "Opposite continuous rotations cancelled out: {} · {} = I",
-                                    stream[i].gate.mnemonic(),
-                                    stream[j].gate.mnemonic()
+                                    stream[i].1.gate.mnemonic(),
+                                    stream[j].1.gate.mnemonic()
                                 ),
                                 qubits: stream[i]
+                                    .1
                                     .gate
                                     .active_qubits()
                                     .iter()
                                     .map(|q| q.0)
                                     .collect(),
-                                instruction_indices: vec![i, j],
+                                instruction_indices: vec![orig_i, orig_j],
                             });
                             stream.remove(j);
                             stream.remove(i);
@@ -318,7 +454,7 @@ impl QirDeobfuscator {
                     }
 
                     // Check if gate at j interferes with gate at i
-                    if self.gates_interfere(&stream[i].gate, &stream[j].gate) {
+                    if self.gates_interfere(&stream[i].1.gate, &stream[j].1.gate) {
                         break;
                     }
 
@@ -332,7 +468,7 @@ impl QirDeobfuscator {
             }
         }
 
-        stream
+        stream.into_iter().map(|(_, inst)| inst).collect()
     }
 
     fn can_cancel_involutions(&self, g1: &QuantumGate, g2: &QuantumGate) -> bool {
@@ -355,14 +491,6 @@ impl QirDeobfuscator {
             (QuantumGate::CCX(c1_a, c2_a, t_a), QuantumGate::CCX(c1_b, c2_b, t_b))
                 if t_a == t_b
                     && ((c1_a == c1_b && c2_a == c2_b) || (c1_a == c2_b && c2_a == c1_b)) =>
-            {
-                true
-            }
-            (QuantumGate::S(q1), QuantumGate::Sdg(q2))
-            | (QuantumGate::Sdg(q1), QuantumGate::S(q2))
-            | (QuantumGate::T(q1), QuantumGate::Tdg(q2))
-            | (QuantumGate::Tdg(q1), QuantumGate::T(q2))
-                if q1 == q2 =>
             {
                 true
             }
@@ -408,41 +536,15 @@ impl QirDeobfuscator {
         g1: &QuantumGate,
         g2: &QuantumGate,
     ) -> Option<Option<QuantumGate>> {
-        const EPSILON: f64 = 1e-7;
-
         match (g1, g2) {
             (QuantumGate::Rz(t1, q1), QuantumGate::Rz(t2, q2)) if q1 == q2 => {
-                let sum = t1 + t2;
-                let normalized = sum.rem_euclid(2.0 * std::f64::consts::PI);
-                if normalized.abs() < EPSILON
-                    || (2.0 * std::f64::consts::PI - normalized).abs() < EPSILON
-                {
-                    Some(None) // Cancels to Identity
-                } else {
-                    Some(Some(QuantumGate::Rz(sum, *q1)))
-                }
+                consolidate_angle_pair(*t1, *t2).map(|opt| opt.map(|a| QuantumGate::Rz(a, *q1)))
             }
             (QuantumGate::Rx(t1, q1), QuantumGate::Rx(t2, q2)) if q1 == q2 => {
-                let sum = t1 + t2;
-                let normalized = sum.rem_euclid(2.0 * std::f64::consts::PI);
-                if normalized.abs() < EPSILON
-                    || (2.0 * std::f64::consts::PI - normalized).abs() < EPSILON
-                {
-                    Some(None)
-                } else {
-                    Some(Some(QuantumGate::Rx(sum, *q1)))
-                }
+                consolidate_angle_pair(*t1, *t2).map(|opt| opt.map(|a| QuantumGate::Rx(a, *q1)))
             }
             (QuantumGate::Ry(t1, q1), QuantumGate::Ry(t2, q2)) if q1 == q2 => {
-                let sum = t1 + t2;
-                let normalized = sum.rem_euclid(2.0 * std::f64::consts::PI);
-                if normalized.abs() < EPSILON
-                    || (2.0 * std::f64::consts::PI - normalized).abs() < EPSILON
-                {
-                    Some(None)
-                } else {
-                    Some(Some(QuantumGate::Ry(sum, *q1)))
-                }
+                consolidate_angle_pair(*t1, *t2).map(|opt| opt.map(|a| QuantumGate::Ry(a, *q1)))
             }
             _ => None,
         }
@@ -451,6 +553,23 @@ impl QirDeobfuscator {
     /// Returns true if two quantum gates fail to commute (i.e. [G1, G2] != 0).
     /// If two gates commute ([G1, G2] == 0), one can slide past the other without changing circuit semantics.
     fn gates_interfere(&self, g1: &QuantumGate, g2: &QuantumGate) -> bool {
+        // Non-unitary operations (measurement, reset, custom intrinsics) and barriers partition unitary
+        // epochs and must not be reordered past unitary gates (keeps causal epochs & segment verifier sound).
+        if matches!(
+            g1,
+            QuantumGate::Mz(_, _) | QuantumGate::Reset(_) | QuantumGate::Custom { .. }
+        ) || matches!(
+            g2,
+            QuantumGate::Mz(_, _) | QuantumGate::Reset(_) | QuantumGate::Custom { .. }
+        ) {
+            return true;
+        }
+        if matches!(g1, QuantumGate::Barrier(b) if b.is_empty())
+            || matches!(g2, QuantumGate::Barrier(b) if b.is_empty())
+        {
+            return true;
+        }
+
         let qs1: HashSet<Qubit> = g1.active_qubits().into_iter().collect();
         let qs2: HashSet<Qubit> = g2.active_qubits().into_iter().collect();
 
@@ -478,6 +597,13 @@ impl QirDeobfuscator {
             }
         };
 
+        let is_y_family = |g: &QuantumGate, q: Qubit| -> bool {
+            match g {
+                QuantumGate::Y(t) | QuantumGate::Ry(_, t) => *t == q,
+                _ => false,
+            }
+        };
+
         for &q in &qs1 {
             if qs2.contains(&q) {
                 if is_z_family(g1, q) && is_z_family(g2, q) {
@@ -486,15 +612,18 @@ impl QirDeobfuscator {
                 if is_x_family(g1, q) && is_x_family(g2, q) {
                     continue;
                 }
+                if is_y_family(g1, q) && is_y_family(g2, q) {
+                    continue;
+                }
 
                 match (g1, g2) {
-                    (g_z, QuantumGate::CX(c, _)) | (QuantumGate::CX(c, _), g_z)
-                        if q == *c && is_z_family(g_z, q) =>
+                    (g_z, QuantumGate::CX(c, t)) | (QuantumGate::CX(c, t), g_z)
+                        if c != t && q == *c && is_z_family(g_z, q) =>
                     {
                         continue
                     }
-                    (g_x, QuantumGate::CX(_, t)) | (QuantumGate::CX(_, t), g_x)
-                        if q == *t && is_x_family(g_x, q) =>
+                    (g_x, QuantumGate::CX(c, t)) | (QuantumGate::CX(c, t), g_x)
+                        if c != t && q == *t && is_x_family(g_x, q) =>
                     {
                         continue
                     }
@@ -504,20 +633,35 @@ impl QirDeobfuscator {
                         continue
                     }
                     (QuantumGate::CZ(_, _), QuantumGate::CZ(_, _)) => continue,
-                    (QuantumGate::CX(c1, _), QuantumGate::CX(c2, _)) if c1 == c2 => continue,
-                    (QuantumGate::CX(_, t1), QuantumGate::CX(_, t2)) if t1 == t2 => continue,
-                    (g_z, QuantumGate::CCX(c1, c2, _)) | (QuantumGate::CCX(c1, c2, _), g_z)
-                        if (q == *c1 || q == *c2) && is_z_family(g_z, q) =>
+                    (QuantumGate::CX(c1, t1), QuantumGate::CX(c2, t2))
+                        if c1 != t1 && c2 != t2 && c1 == c2 =>
                     {
                         continue
                     }
-                    (g_x, QuantumGate::CCX(_, _, t)) | (QuantumGate::CCX(_, _, t), g_x)
-                        if q == *t && is_x_family(g_x, q) =>
+                    (QuantumGate::CX(c1, t1), QuantumGate::CX(c2, t2))
+                        if c1 != t1 && c2 != t2 && t1 == t2 =>
                     {
                         continue
                     }
-                    (QuantumGate::CCX(c1_a, c2_a, _), QuantumGate::CCX(c1_b, c2_b, _))
-                        if (c1_a == c1_b && c2_a == c2_b) || (c1_a == c2_b && c2_a == c1_b) =>
+                    (g_z, QuantumGate::CCX(c1, c2, t)) | (QuantumGate::CCX(c1, c2, t), g_z)
+                        if q != *t && (q == *c1 || q == *c2) && is_z_family(g_z, q) =>
+                    {
+                        continue
+                    }
+                    (g_x, QuantumGate::CCX(c1, c2, t)) | (QuantumGate::CCX(c1, c2, t), g_x)
+                        if q != *c1 && q != *c2 && q == *t && is_x_family(g_x, q) =>
+                    {
+                        continue
+                    }
+                    (QuantumGate::CCX(c1_a, c2_a, t_a), QuantumGate::CCX(c1_b, c2_b, t_b))
+                        if c1_a != c2_a
+                            && c1_a != t_a
+                            && c2_a != t_a
+                            && c1_b != c2_b
+                            && c1_b != t_b
+                            && c2_b != t_b
+                            && ((c1_a == c1_b && c2_a == c2_b)
+                                || (c1_a == c2_b && c2_a == c1_b)) =>
                     {
                         continue
                     }
@@ -559,5 +703,49 @@ impl QirDeobfuscator {
         );
 
         report
+    }
+}
+
+const ROTATION_EPSILON: f64 = 1e-6;
+
+fn rotation_angle(gate: &QuantumGate) -> Option<f64> {
+    match gate {
+        QuantumGate::Rx(t, _) | QuantumGate::Ry(t, _) | QuantumGate::Rz(t, _) => Some(*t),
+        _ => None,
+    }
+}
+
+fn is_identity_rotation_angle(theta: f64) -> bool {
+    if !theta.is_finite() {
+        return false;
+    }
+    let normalized = theta.rem_euclid(std::f64::consts::TAU);
+    normalized < ROTATION_EPSILON || (std::f64::consts::TAU - normalized) < ROTATION_EPSILON
+}
+
+fn wrap_angle_signed_pi(theta: f64) -> f64 {
+    let wrapped =
+        (theta + std::f64::consts::PI).rem_euclid(std::f64::consts::TAU) - std::f64::consts::PI;
+    if (wrapped + std::f64::consts::PI).abs() < 1e-12 {
+        std::f64::consts::PI
+    } else if wrapped.abs() == 0.0 {
+        0.0
+    } else {
+        wrapped
+    }
+}
+
+fn consolidate_angle_pair(t1: f64, t2: f64) -> Option<Option<f64>> {
+    if !t1.is_finite() || !t2.is_finite() {
+        return None;
+    }
+    let sum = t1 + t2;
+    if !sum.is_finite() {
+        return None;
+    }
+    if is_identity_rotation_angle(sum) {
+        Some(None)
+    } else {
+        Some(Some(wrap_angle_signed_pi(sum)))
     }
 }
